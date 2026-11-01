@@ -157,13 +157,31 @@ def _(requests):
       else:
         print(f"virhe {_season} haussa: Status {_response.status_code}")
 
-    teams_per_season
-    return (teams_per_season,)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Test what club stats brings us
+    """)
+    return
 
 
 @app.cell
-def _(teams_per_season):
-    print(teams_per_season.get("20232024"))
+def _(pl, requests):
+    #Get club stats by Season and Game Type
+    response_club = requests.get("https://api.nhle.com/stats/rest/en/team/summary?cayenneExp=seasonId=20232024%20and%20gameTypeId=2%20and%20teamId=10")
+    print(response_club.status_code)
+    print(response_club.content)
+    df_club = pl.read_json(response_club.content)
+
+    df_club
+    return
+
+
+@app.cell
+def _():
     return
 
 
