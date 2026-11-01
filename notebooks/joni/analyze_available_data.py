@@ -46,5 +46,38 @@ def _(df, pl):
     return
 
 
+@app.cell
+def _(pl, requests):
+    #Get club schelude per season
+    response_schedule = requests.get("https://api-web.nhle.com/v1/club-schedule-season/TOR/20232024")
+    print(response_schedule.status_code)
+    print(response_schedule.content)
+    df_schedule = pl.read_json(response_schedule.content)
+    return (df_schedule,)
+
+
+@app.cell
+def _(df_schedule):
+    df_schedule
+    return
+
+
+@app.cell
+def _(df_schedule, pl):
+    df_games = (
+        df_schedule
+        .explode("games")
+        .unnest("games")
+        .with_columns(
+            home_score=pl.col("homeTeam").struct.field("score"),
+            away_score=pl.col("awayTeam").struct.field("score")
+        )
+    )
+
+    df_games.select(["id", "home_score", "away_score"])
+
+    return
+
+
 if __name__ == "__main__":
     app.run()
