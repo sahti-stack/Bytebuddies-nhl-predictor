@@ -89,7 +89,6 @@ def _(df_schedule, pl):
     )
     #df_games
     df_games.select(["id", "home_team", "home_team_id", "home_score", "away_team", "away_team_id", "away_score"])
-
     return
 
 
@@ -132,52 +131,39 @@ def _(mo):
 
 @app.cell
 def _(requests):
-    # Which seasons to check and date when to check (15.1), its middle of the season so should work best
     seasons_to_check = {
         "20222023": "2023-01-15",
         "20232024": "2024-01-15",
         "20242025": "2025-01-15",
     }
 
-    # Korjattu sanakirjan nimi yhtenäiseksi
     teams_per_season = {}
 
-    # Korjattu: seasons_to_check (monikko) ja .items()
-    for season, date in seasons_to_check.items():
-      # Korjattu virallinen NHL API -osoite
-      url = f"https://nhle.com{date}"
-      response = requests.get(url)
+    for _season, _date in seasons_to_check.items():
+      _url = f"https://api-web.nhle.com/v1/standings/{_date}"
+      _response = requests.get(_url)
 
-      if response.status_code == 200:
-        data = response.json()
+      if _response.status_code == 200:
+        _data = _response.json()
 
-        # lets collect all the teams that season to a list
-        season_teams = []
-        for record in data.get("standings", []):
-          abbr = record.get("teamAbbrev", {}).get("default") or record.get(
-              "teamAbbrev"
-          )
-          if abbr:
-            season_teams.append(abbr)
+        _season_teams = []
+        for _record in _data.get("standings", []):
+          _abbr = _record.get("teamAbbrev", {}).get("default")
+          if _abbr:
+            _season_teams.append(_abbr)
 
-        # Lets save the list to dictionary as sorted
-        teams_per_season[season] = sorted(season_teams)
-
-        # Korjattu puuttuva sulku len()-funktion jälkeen
-        print(f"loytyi {len(season_teams)} joukkuetta kaudelle {season}")
-
+        teams_per_season[_season] = sorted(_season_teams)
+        print(f"loytyi {len(_season_teams)} joukkuetta kaudelle {_season}")
       else:
-        print(f"virhe {season} haussa")
-        print(f"Status koodi: {response.status_code}")
+        print(f"virhe {_season} haussa: Status {_response.status_code}")
 
     teams_per_season
-
     return (teams_per_season,)
 
 
 @app.cell
 def _(teams_per_season):
-    print(teams_per_season.get("20232024, []"))
+    print(teams_per_season.get("20232024"))
     return
 
 
