@@ -8,4 +8,6 @@ dependencies = [
     "dbt-core>=1.12.6",
     "dbt-duckdb>=1.11.1",
     "marimo>=0.25.2",
+    "polars>=2.1.0",
+    "requests>=2.34.2",
 ]
