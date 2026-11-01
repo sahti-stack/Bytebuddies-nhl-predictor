@@ -10,7 +10,7 @@ def _():
     import requests
     import polars as pl
 
-    return mo, pl, requests
+    return pl, requests
 
 
 @app.cell
@@ -29,11 +29,20 @@ def _(df):
     return
 
 
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""
- 
-    """)
+@app.cell
+def _(df, pl):
+    df_players = (
+        df
+        .select(pl.col("*").exclude("goalies"))
+        .explode("skaters")
+        .unnest("skaters")
+        .with_columns([
+            pl.col("firstName").struct.field("default").alias("firstName"),
+            pl.col("lastName").struct.field("default").alias("lastName"),
+        ])
+    )
+
+    df_players
     return
 
 
