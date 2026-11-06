@@ -1,0 +1,47 @@
+version: 2
+
+sources:
+  - name: bronze
+    schema: bronze
+    description: "Raw ingested data from official NHL APIs stored in DuckDB"
+    tables:
+      - name: raw_games
+        description: "NHL game schedule, results, and scores"
+        columns:
+          - name: game_id
+            description: "Unique game identifier"
+            tests:
+              - unique
+              - not_null
+          - name: season
+            description: "Season ID in YYYYYYYY format, e.g. 20262027"
+          - name: game_type
+            description: "Game type (2 = regular season, 3 = playoffs)"
+          - name: game_date
+            description: "Date of the game (YYYY-MM-DD)"
+          - name: game_state
+            description: "Game state (e.g. FINAL, OFF, FUT)"
+          - name: home_team_abbrev
+            description: "Home team 3-letter abbreviation"
+          - name: away_team_abbrev
+            description: "Away team 3-letter abbreviation"
+          - name: home_score
+            description: "Goals scored by home team"
+          - name: away_score
+            description: "Goals scored by away team"
+          - name: outcome_last_period_type
+            description: "Period type when game ended (REG, OT, SO)"
+
+      - name: raw_team_stats
+        description: "Seasonal aggregate stats per team (summary)"
+        columns:
+          - name: season
+          - name: team_id
+          - name: team_abbrev
+
+      - name: raw_team_percentages
+        description: "Advanced metrics (Corsi, Fenwick, PDO) per team per season"
+        columns:
+          - name: season
+          - name: team_id
+          - name: team_abbrev
