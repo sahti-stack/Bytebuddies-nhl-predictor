@@ -243,7 +243,7 @@ def _(pl, session):
     if pbp_res.status_code == 200:
         pbp_data = pbp_res.json()
         plays = pbp_data.get("plays", [])
-    
+
         # Suodatetaan maalit ja laukaukset koordinaatteineen
         shots = [
             {
@@ -356,7 +356,17 @@ def _(mo):
 
 @app.cell
 def _():
-    return
+    import duckdb
+    import polars as pl
+
+    con = duckdb.connect("data/warehouse/dev.duckdb", read_only=True)
+
+    # Haetaan data suoraan Polars DataFrameksi
+    df_games = con.sql("SELECT * FROM bronze.raw_games").pl()
+    df_stats = con.sql("SELECT * FROM bronze.raw_team_stats").pl()
+
+    df_games
+    return (pl,)
 
 
 if __name__ == "__main__":

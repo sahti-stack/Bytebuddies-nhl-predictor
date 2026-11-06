@@ -1,0 +1,2 @@
+"""Bytebuddies NHL Predictor package."""
+
