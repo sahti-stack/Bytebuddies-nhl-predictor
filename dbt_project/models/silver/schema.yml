@@ -1,0 +1,60 @@
+version: 2
+
+models:
+  - name: stg_games
+    description: "Cleaned and typed game records with outcome indicators."
+    columns:
+      - name: game_id
+        description: "Primary key for games"
+        tests:
+          - unique
+          - not_null
+      - name: season
+        description: "Season identifier"
+        tests:
+          - not_null
+      - name: home_team_abbrev
+        tests:
+          - not_null
+      - name: away_team_abbrev
+        tests:
+          - not_null
+
+  - name: stg_team_stats
+    description: "Cleaned seasonal team summaries."
+    columns:
+      - name: team_id
+        tests:
+          - not_null
+      - name: season
+        tests:
+          - not_null
+
+  - name: stg_team_percentages
+    description: "Cleaned team Corsi, Fenwick, and PDO advanced metrics."
+    columns:
+      - name: team_id
+        tests:
+          - not_null
+      - name: season
+        tests:
+          - not_null
+
+  - name: silver_team_metrics
+    description: "Consolidated team metrics combining basic stats and advanced analytics."
+    columns:
+      - name: team_id
+        tests:
+          - not_null
+      - name: season
+        tests:
+          - not_null
+
+  - name: silver_games_enriched
+    description: "Enriched games dataset with team seasonal metrics, rest days, and rolling 5/10 game form."
+    columns:
+      - name: game_id
+        description: "Primary key"
+        tests:
+          - unique
+          - not_null
