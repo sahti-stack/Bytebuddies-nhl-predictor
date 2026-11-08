@@ -3,5 +3,5 @@ dbt_project:
   outputs:
     dev:
       type: duckdb
-      path: '../data/warehouse/dev.duckdb'
+      path: "{{ env_var('DBT_DUCKDB_PATH', '../data/warehouse/dev.duckdb') }}"
       threads: 1
