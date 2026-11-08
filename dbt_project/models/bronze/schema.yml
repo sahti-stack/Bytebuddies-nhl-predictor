@@ -1,0 +1,41 @@
+version: 2
+
+models:
+  - name: bronze_games
+    description: "Alkuperäinen otteludata ladattuna DuckDB:n Bronze-kerrokseen suoraan NHL API:sta."
+    columns:
+      - name: game_id
+        description: "Ottelun yksilöivä ID (Primary Key)"
+        tests:
+          - unique
+          - not_null
+      - name: season
+        description: "Kausitunniste (YYYYYYYY)"
+        tests:
+          - not_null
+      - name: home_team_abbrev
+        tests:
+          - not_null
+      - name: away_team_abbrev
+        tests:
+          - not_null
+
+  - name: bronze_team_stats
+    description: "Alkuperäiset joukkuetilastot per kausi."
+    columns:
+      - name: season
+        tests:
+          - not_null
+      - name: team_id
+        tests:
+          - not_null
+
+  - name: bronze_team_percentages
+    description: "Alkuperäiset Corsi-, Fenwick- ja PDO-tilastot."
+    columns:
+      - name: season
+        tests:
+          - not_null
+      - name: team_id
+        tests:
+          - not_null
