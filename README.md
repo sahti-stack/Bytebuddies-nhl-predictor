@@ -1,120 +1,162 @@
-# Bytebuddies-nhl-predictor
+# Bytebuddies NHL Predictor
 
-# Bytebuddies NHL Predictor - Kamk Student Project 2 Machine Learning.
+**KAMK Student Project 2 – Machine Learning**
 
-This repository contains the data pipeline, exploratory notebooks, machine learning models, and project documentation for the Bytebuddies NHL Predictor project. 
+Tämä repositorio sisältää koneoppimisprojektin dataputken, tutkimusmuistiot (Marimo), koneoppimismallit sekä opintojakson dokumentaation ja raportin. 
 
-The project uses a single monorepo structure managed with **uv** for Python dependencies, **Marimo** for reactive notebooks, and **Typst** (`kamk-thesis`) for project reporting.
+Projekti käyttää monoreporakennetta, jota hallitaan **uv**-työkalulla Python-riippuvuuksille, **dbt:llä** ja **DuckDB:llä** Medallion-dataputkelle (Bronze $\rightarrow$ Silver $\rightarrow$ Gold), **Marimolla** reaktiivisille muistioille sekä **Typstillä** (`kamk-thesis`) raportoinnille.
 
-## Project Structure
+---
+
+## Projektirakenne
 
 ```text
 Bytebuddies-nhl-predictor/
 ├── .venv/               # Virtual environment managed by uv (ignored by Git)
-├── data/                # Local raw data and database files (ignored by Git)
-├── logs/                # Application execution logs
-├── notebooks/           # Marimo reactive notebooks (.py)
-├── report/              # Typst report using the KAMK thesis template
-├── .gitignore           # Git ignore rules
-├── .python-version      # Pinned Python version for uv
-├── main.py              # Main entry point script
-├── pyproject.toml       # Project dependencies and configuration
-├── README.md            # Project documentation
-└── uv.lock              # Exact locked dependency versions
+├── data/                # Paikallinen DuckDB-tietokanta ja raakadata (ignored by Git)
+├── dbt_project/         # dbt Medallion -dataputki (DuckDB)
+│   ├── macros/          # Mukautetut Jinja-makrot (mm. skeeman nimeäminen)
+│   └── models/          # Medallion-kerrokset:
+│       ├── bronze/      # 🥉 Raakadatataulut suoraan API-lähteistä
+│       ├── silver/      # 🥈 Puhdistus, tulosliput, lepopäivät ja kuntopuntarit
+│       └── gold/        # 🥇 Koneoppimisvalmis data (gold_games)
+├── docs/                # Tiimin arkkitehtuuri- ja käyttöohjeet
+│   ├── dbt-ohje.md      # Yksityiskohtainen dbt-käyttöohje
+│   └── dbt_lineage_kaavio.md # Datan sukupuu, arkkitehtuurianalyysi ja perustelut
+├── notebooks/           # Marimo reaktiiviset tutkimusmuistiot (.py)
+├── report/              # Typst-raporttipohja (KAMK thesis)
+│   ├── chapters/        # Raportin luvut (mm. projektisuunnitelma ja dataputki)
+│   └── thesis.typ       # Raportin päädokumentti
+├── src/                 # Dataputken Python-lähdekoodit
+│   └── bronze_ingestion.py # NHL API -tiedonkeruu DuckDB:n Bronze-kerrokseen
+├── pyproject.toml       # Projektin riippuvuudet ja työkalut
+├── README.md            # Tämä pääohjeistus
+└── uv.lock              # Lukitut pakettiversiot
 ```
 
-## Prerequisites
+---
 
-Before cloning and running the project, make sure you have the following installed on your machine:
+## Esivaatimukset
 
-### 1. Install `uv` (Python Package Manager)
-We use `uv` to manage Python versions, virtual environments, and packages.
+Varmista, että koneellesi on asennettu:
+
+### 1. `uv` (Python-pakettienhallinta)
+* **Windows (PowerShell):**
+  ```powershell
+  powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+  ```
 * **Linux / macOS:**
   ```bash
   curl -LsSf https://astral.sh/uv/install.sh | sh
   ```
 
-### 2. Install the Carlito Font (Required for the Report)
-The KAMK Typst template requires the **Carlito** font family to compile properly without font warnings.
-* **Download directly (Windows / macOS / Linux):**
-  1. Download the font family from [Google Fonts: Carlito](https://fonts.google.com/specimen/Carlito).
-  2. Extract the `.zip` archive, select all `.ttf` files, and install them on your system (on Windows, right-click and choose **Install for all users**).
-* **Ubuntu / Debian (via APT):**
-  ```bash
-  sudo apt update && sudo apt install fonts-crosextra-carlito
-  ```
-*(Note: Restart your code editor or terminal after installing the font so the compiler detects it.)*
+### 2. Carlito-fontti (raportin kääntämistä varten)
+KAMK Typst -pohja vaatii **Carlito**-fonttiperheen.
+* **Lataa:** [Google Fonts: Carlito](https://fonts.google.com/specimen/Carlito) ja asenna `.ttf`-tiedostot järjestelmään.
 
-### 3. Install Typst (For Compiling the Report)
-You can use either a code editor extension or the standalone command-line compiler:
-* **Option A (VS Code / Zed Extension):** Install the **Tinymist Typst** extension in your editor. It includes a built-in compiler and live PDF preview.
-* **Option B (Typst CLI):**
-  * **Linux (Snap):** `sudo snap install typst`
-  * **Windows (Winget):** `winget install --id Typst.Typst`
-  * **macOS (Homebrew):** `brew install typst`
+### 3. Typst (raportointia varten)
+* **VS Code:** Asenna **Tinymist Typst** -laajennus.
+* **CLI:** `winget install --id Typst.Typst` (Windows) tai `brew install typst` (macOS).
 
 ---
 
-## Getting Started (Initial Setup)
+## Alkuasetukset (Initial Setup)
 
-1. **Clone the repository:**
+1. **Kloonaa repositorio ja siirry kansioon:**
    ```bash
-   git clone <REPOSITORY_URL>
+   git clone https://github.com/sahti-stack/Bytebuddies-nhl-predictor.git
    cd Bytebuddies-nhl-predictor
    ```
 
-2. **Sync the Python environment:**
-   Run the following command in the project root. It will automatically install the required Python version (defined in `.python-version`), create the `.venv` directory, and install all locked packages from `uv.lock`:
+2. **Synkronoi Python-ympäristö:**
+   Komento asentaa automaattisesti oikean Python-version ja kaikki lukitut paketit:
    ```bash
    uv sync
    ```
 
 ---
 
-## Running the Tools
+## 🏒 Dataputken ajaminen (dbt Medallion Pipeline)
 
-Because we use `uv`, you do not need to manually activate the virtual environment. Prefix commands with `uv run` from the project root to execute them inside the shared environment.
+Dataputki noutaa tuoreen NHL-datan, puhdistaa sen ja tuottaa valmiin koneoppimisen syöteaineiston (`gold.gold_games`) paikalliseen DuckDB-tietokantaan.
 
-### 1. Marimo Notebooks (`notebooks/`)
-Marimo notebooks are stored as pure Python `.py` files.
-* **Open the Marimo dashboard to browse or edit notebooks:**
-  ```bash
-  uv run marimo edit
-  ```
-* **Create or edit a specific notebook:**
-  ```bash
-  uv run marimo edit notebooks/my_notebook.py
-  ```
-* **Run a notebook as an interactive web app (read-only view):**
-  ```bash
-  uv run marimo run notebooks/my_notebook.py
-  ```
-
-### 2. Main Entry Point (`main.py`)
-To run the main execution script of the project using the shared virtual environment:
+### Vaihe 1: Datan haku rajapinnasta (Bronze Ingestion)
+Suorita tiedonkeruu projektin juuresta. Skripti noutaa ottelut, sarjataulukon ja edistyneet Corsi/Fenwick/PDO-tilastot:
 ```bash
-uv run main.py
+# Esimerkki: Haetaan kausi 2024–2025
+uv run python src/bronze_ingestion.py --seasons 20242025
+
+# Esimerkki: Useampi kausi kerralla
+uv run python src/bronze_ingestion.py --seasons 20222023 20232024 20242025
 ```
 
-### 3. Typst Report (`report/`)
-The report is located in the `report/` directory and uses the `@preview/kamk-thesis:0.0.2` template.
+### Vaihe 2: dbt-muunnokset (Bronze ➔ Silver ➔ Gold)
+Siirry `dbt_project`-kansioon ja aja mallit:
+```bash
+cd dbt_project
 
-* **Live compilation with CLI (watches for changes and opens the PDF automatically):**
-  ```bash
-  cd report
-  typst watch thesis.typ --open
-  ```
-* **Single compilation to PDF:**
-  ```bash
-  typst compile report/thesis.typ report/thesis.pdf
-  ```
-* **Using VS Code / Zed:** Open `report/thesis.typ` and click **Preview** in the top-right corner (provided by the Tinymist extension).
+# Tarkista tietokantayhteys
+uv run dbt debug
+
+# Aja kaikki Medallion-taulut (9 mallia)
+uv run dbt run
+```
+
+### Vaihe 3: Datan laadun ja eheyden testaus
+Aja dbt:n automaattiset laatutestit (varmistaa pääavainten uniikkiuden ja kenttien eheyden):
+```bash
+uv run dbt test
+```
+
+### Vaihe 4: Interaktiivinen dokumentaatio ja Lineage-kaavio
+```bash
+uv run dbt docs generate
+uv run dbt docs serve
+```
+*Avaa selaimeen visuaalisen esityksen tietokannan rakenteesta ja riippuvuussuhteista.*
+
+### Vaihe 5: Valmiin datan lukeminen koneoppimisessa
+Koneoppimismallia kehittävä voi lukea valmiin aineiston suoraan DuckDB:stä Polars-muodossa:
+```python
+import duckdb
+
+con = duckdb.connect("data/warehouse/dev.duckdb")
+df = con.execute("SELECT * FROM gold.gold_games").pl()
+print(df.head())
+```
+
+Lisätietoja:
+* 📖 [Yksityiskohtainen dbt-ohje (`docs/dbt-ohje.md`)](docs/dbt-ohje.md)
+* 📊 [Arkkitehtuuri, riippuvuussukupuu ja analyysi (`docs/dbt_lineage_kaavio.md`)](docs/dbt_lineage_kaavio.md)
 
 ---
 
-## Adding New Python Packages
+## Muiden työkalujen ajaminen
 
-If you need to install a new Python library for the project, add it using `uv add` in the project root:
+### 1. Marimo-tutkimusmuistiot (`notebooks/`)
+* **Avaa Marimo-kojelauta:**
+  ```bash
+  uv run marimo edit
+  ```
+* **Muokkaa tiettyä muistiota:**
+  ```bash
+  uv run marimo edit notebooks/panu/nhl_api_exploration.py
+  ```
+
+### 2. Raportin kääntäminen (`report/`)
+* **Käännä raportti PDF-muotoon:**
+  ```bash
+  typst compile report/thesis.typ report/thesis.pdf
+  ```
+* **Katselutila automaattipäivityksellä:**
+  ```bash
+  typst watch report/thesis.typ --open
+  ```
+
+---
+
+## Uusien pakettien lisääminen
+Uudet riippuvuudet asennetaan aina `uv`:n kautta projektin juuresta:
 ```bash
-uv add <package-name>
+uv add <paketin-nimi>
 ```
