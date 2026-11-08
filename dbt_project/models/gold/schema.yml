@@ -1,0 +1,39 @@
+version: 2
+
+models:
+  - name: gold_games
+    description: "Kattava analyysi- ja koneoppimisvalmis ottelutaulu. Yhdistää ottelutulokset, joukkuemetriikat, lepopäivät, kuntopuntarit sekä kehittyneet Corsi/Fenwick/PDO-tilastot yhteen tauluun koneoppimismallien kehitystä varten."
+    columns:
+      - name: game_id
+        description: "Ottelun yksilöivä tunniste (Primary Key)"
+        tests:
+          - unique
+          - not_null
+      - name: season
+        description: "Kausitunniste (esim. 20242025)"
+        tests:
+          - not_null
+      - name: home_team_abbrev
+        description: "Kotijoukkueen 3-kirjaiminen lyhenne"
+        tests:
+          - not_null
+      - name: away_team_abbrev
+        description: "Vierasjoukkueen 3-kirjaiminen lyhenne"
+        tests:
+          - not_null
+      - name: is_played
+        description: "Lippumuuttuja: onko ottelu pelattu loppuun (TRUE) vai tuleva ottelu (FALSE)"
+        tests:
+          - not_null
+      - name: home_win
+        description: "Kohdemuuttuja: 1 jos kotijoukkue voitti, 0 jos hävisi, NULL jos ottelua ei ole pelattu"
+      - name: total_goals
+        description: "Ottelussa tehdyt maalit yhteensä"
+      - name: home_rest_days
+        description: "Kotijoukkueen lepopäivät edellisestä ottelusta"
+      - name: away_rest_days
+        description: "Vierasjoukkueen lepopäivät edellisestä ottelusta"
+      - name: point_pct_diff
+        description: "Pisteprosenttiero joukkueiden välillä (Koti - Vieras)"
+      - name: corsi_diff
+        description: "Corsi-hallintaprosentin ero (Koti - Vieras)"
