@@ -37,6 +37,16 @@ def _(df):
     return
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### Exploring nested JSON
+
+    Going trough JSON. What information is in the JSON. Why its nested as it is. How to extract certain information
+    """)
+    return
+
+
 @app.cell
 def _(df, pl):
     #exlude goalies, and explode nested struct column. Get names from one nested information pile.
@@ -110,7 +120,7 @@ def _(df_schedule_season):
 
 @app.cell
 def _(df_schedule_season):
-    #just testing what is inside of this
+
     df_now = (
         df_schedule_season
         .explode("teams")
@@ -156,7 +166,6 @@ def _(requests):
         print(f"loytyi {len(_season_teams)} joukkuetta kaudelle {_season}")
       else:
         print(f"virhe {_season} haussa: Status {_response.status_code}")
-
     return
 
 

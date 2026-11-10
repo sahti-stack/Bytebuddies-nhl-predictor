@@ -9,7 +9,9 @@ dependencies = [
     "dbt-duckdb>=1.11.1",
     "duckdb>=2.0.0",
     "marimo>=0.25.2",
+    "numpy>=2.5.4",
     "polars>=2.1.0",
     "pyarrow>=26.0.0",
     "requests>=2.34.2",
+    "scikit-learn>=1.9.1",
 ]
