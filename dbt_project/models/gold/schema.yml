@@ -33,7 +33,7 @@ models:
         description: "Kotijoukkueen lepopäivät edellisestä ottelusta"
       - name: away_rest_days
         description: "Vierasjoukkueen lepopäivät edellisestä ottelusta"
-      - name: point_pct_diff
-        description: "Pisteprosenttiero joukkueiden välillä (Koti - Vieras)"
-      - name: corsi_diff
-        description: "Corsi-hallintaprosentin ero (Koti - Vieras)"
+      - name: prior_point_pct_diff
+        description: "Edellisen kauden pisteprosenttiero joukkueiden välillä (Koti - Vieras, ei tulevaisuusvuotoa)"
+      - name: prior_corsi_diff
+        description: "Edellisen kauden Corsi-hallintaprosentin ero (Koti - Vieras, ei tulevaisuusvuotoa)"

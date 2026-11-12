@@ -51,7 +51,7 @@ models:
           - not_null
 
   - name: silver_games_enriched
-    description: "Enriched games dataset with team seasonal metrics, rest days, and rolling 5/10 game form."
+    description: "Enriched games dataset with prior-season team metrics (leak-free), rest days, and rolling 5/10 game form."
     columns:
       - name: game_id
         description: "Primary key"

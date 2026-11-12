@@ -142,38 +142,38 @@ SELECT
     ROUND(af.rolling_win_pct_10, 3) AS away_rolling_win_pct_10,
     ROUND(af.rolling_goals_for_10, 2) AS away_rolling_goals_for_10,
     ROUND(af.rolling_goals_against_10, 2) AS away_rolling_goals_against_10,
-    -- Home team season metrics
-    hm.point_pct AS home_point_pct,
-    hm.goals_for_per_game AS home_goals_for_per_game,
-    hm.goals_against_per_game AS home_goals_against_per_game,
-    hm.power_play_pct AS home_power_play_pct,
-    hm.penalty_kill_pct AS home_penalty_kill_pct,
-    hm.shots_for_per_game AS home_shots_for_per_game,
-    hm.shots_against_per_game AS home_shots_against_per_game,
-    hm.faceoff_win_pct AS home_faceoff_win_pct,
-    hm.corsi_pct AS home_corsi_pct,
-    hm.fenwick_pct AS home_fenwick_pct,
-    hm.pdo_5v5 AS home_pdo_5v5,
-    -- Away team season metrics
-    am.point_pct AS away_point_pct,
-    am.goals_for_per_game AS away_goals_for_per_game,
-    am.goals_against_per_game AS away_goals_against_per_game,
-    am.power_play_pct AS away_power_play_pct,
-    am.penalty_kill_pct AS away_penalty_kill_pct,
-    am.shots_for_per_game AS away_shots_for_per_game,
-    am.shots_against_per_game AS away_shots_against_per_game,
-    am.faceoff_win_pct AS away_faceoff_win_pct,
-    am.corsi_pct AS away_corsi_pct,
-    am.fenwick_pct AS away_fenwick_pct,
-    am.pdo_5v5 AS away_pdo_5v5
+    -- Home team prior-season metrics (prevents look-ahead data leakage)
+    hm.point_pct AS home_prior_point_pct,
+    hm.goals_for_per_game AS home_prior_goals_for_per_game,
+    hm.goals_against_per_game AS home_prior_goals_against_per_game,
+    hm.power_play_pct AS home_prior_power_play_pct,
+    hm.penalty_kill_pct AS home_prior_penalty_kill_pct,
+    hm.shots_for_per_game AS home_prior_shots_for_per_game,
+    hm.shots_against_per_game AS home_prior_shots_against_per_game,
+    hm.faceoff_win_pct AS home_prior_faceoff_win_pct,
+    hm.corsi_pct AS home_prior_corsi_pct,
+    hm.fenwick_pct AS home_prior_fenwick_pct,
+    hm.pdo_5v5 AS home_prior_pdo_5v5,
+    -- Away team prior-season metrics (prevents look-ahead data leakage)
+    am.point_pct AS away_prior_point_pct,
+    am.goals_for_per_game AS away_prior_goals_for_per_game,
+    am.goals_against_per_game AS away_prior_goals_against_per_game,
+    am.power_play_pct AS away_prior_power_play_pct,
+    am.penalty_kill_pct AS away_prior_penalty_kill_pct,
+    am.shots_for_per_game AS away_prior_shots_for_per_game,
+    am.shots_against_per_game AS away_prior_shots_against_per_game,
+    am.faceoff_win_pct AS away_prior_faceoff_win_pct,
+    am.corsi_pct AS away_prior_corsi_pct,
+    am.fenwick_pct AS away_prior_fenwick_pct,
+    am.pdo_5v5 AS away_prior_pdo_5v5
 FROM games g
 LEFT JOIN home_team_features hf
     ON g.game_id = hf.game_id
 LEFT JOIN away_team_features af
     ON g.game_id = af.game_id
 LEFT JOIN team_metrics hm
-    ON g.season = hm.season
+    ON (g.season - 10001) = hm.season
     AND (g.home_team_id = hm.team_id OR g.home_team_abbrev = hm.team_abbrev)
 LEFT JOIN team_metrics am
-    ON g.season = am.season
+    ON (g.season - 10001) = am.season
     AND (g.away_team_id = am.team_id OR g.away_team_abbrev = am.team_abbrev)
