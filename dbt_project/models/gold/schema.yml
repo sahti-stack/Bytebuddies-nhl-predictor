@@ -2,38 +2,76 @@ version: 2
 
 models:
   - name: gold_games
-    description: "Kattava analyysi- ja koneoppimisvalmis ottelutaulu. Yhdistää ottelutulokset, joukkuemetriikat, lepopäivät, kuntopuntarit sekä kehittyneet Corsi/Fenwick/PDO-tilastot yhteen tauluun koneoppimismallien kehitystä varten."
+    description: "Curated ML-ready table for NHL match outcome prediction. Contains leak-free historical metrics, schedule rest and fatigue features, cumulative in-season performance, rolling 5 and 10 game form, and cold-start eligibility flags for regular season and playoff games."
     columns:
       - name: game_id
-        description: "Ottelun yksilöivä tunniste (Primary Key)"
+        description: "Unique match identifier (Primary Key)"
         tests:
           - unique
           - not_null
       - name: season
-        description: "Kausitunniste (esim. 20242025)"
+        description: "Season identifier (e.g. 20242025)"
+        tests:
+          - not_null
+      - name: game_type
+        description: "Game type identifier (2 = regular season, 3 = playoffs)"
         tests:
           - not_null
       - name: home_team_abbrev
-        description: "Kotijoukkueen 3-kirjaiminen lyhenne"
+        description: "Home team 3-letter abbreviation"
         tests:
           - not_null
       - name: away_team_abbrev
-        description: "Vierasjoukkueen 3-kirjaiminen lyhenne"
+        description: "Away team 3-letter abbreviation"
         tests:
           - not_null
       - name: is_played
-        description: "Lippumuuttuja: onko ottelu pelattu loppuun (TRUE) vai tuleva ottelu (FALSE)"
+        description: "Boolean flag: TRUE if match is completed, FALSE for upcoming scheduled fixtures"
         tests:
           - not_null
       - name: home_win
-        description: "Kohdemuuttuja: 1 jos kotijoukkue voitti, 0 jos hävisi, NULL jos ottelua ei ole pelattu"
+        description: "Primary target variable: 1 if home team won, 0 if lost, NULL if unplayed"
       - name: total_goals
-        description: "Ottelussa tehdyt maalit yhteensä"
+        description: "Total goals scored in the game (target for Over/Under models)"
+      - name: has_min_5_games
+        description: "Cold-start flag: 1 if both teams have played >= 5 games this season, 0 otherwise"
+      - name: has_min_10_games
+        description: "Cold-start flag: 1 if both teams have played >= 10 games this season, 0 otherwise"
       - name: home_rest_days
-        description: "Kotijoukkueen lepopäivät edellisestä ottelusta"
+        description: "Home team days of rest since previous game in the same season"
       - name: away_rest_days
-        description: "Vierasjoukkueen lepopäivät edellisestä ottelusta"
+        description: "Away team days of rest since previous game in the same season"
+      - name: home_rest_days_capped
+        description: "Home team rest days capped at 7 to prevent extreme outlier break distortions"
+      - name: away_rest_days_capped
+        description: "Away team rest days capped at 7 to prevent extreme outlier break distortions"
+      - name: is_b2b_home
+        description: "Home team playing on back-to-back consecutive calendar days"
+      - name: is_b2b_away
+        description: "Away team playing on back-to-back consecutive calendar days"
+      - name: is_3_in_4_home
+        description: "Home team playing their 3rd game in 4 calendar days"
+      - name: is_3_in_4_away
+        description: "Away team playing their 3rd game in 4 calendar days"
+      - name: games_last_7_days_home
+        description: "Home team game density count over preceding 7 calendar days"
+      - name: games_last_7_days_away
+        description: "Away team game density count over preceding 7 calendar days"
+      - name: is_rested_vs_tired
+        description: "Schedule mismatch: Home rested (>=2 days) vs Away playing on back-to-back (1 day)"
+      - name: is_tired_vs_rested
+        description: "Schedule mismatch: Home playing on back-to-back (1 day) vs Away rested (>=2 days)"
+      - name: in_season_win_pct_diff
+        description: "Cumulative in-season win rate differential (Home - Away) prior to game"
+      - name: in_season_goal_diff_per_game_diff
+        description: "Cumulative in-season net goal differential per game difference (Home - Away)"
+      - name: win_pct_diff_5
+        description: "Rolling 5-game win percentage differential (Home - Away) prior to game"
+      - name: win_pct_diff_10
+        description: "Rolling 10-game win percentage differential (Home - Away) prior to game"
       - name: prior_point_pct_diff
-        description: "Edellisen kauden pisteprosenttiero joukkueiden välillä (Koti - Vieras, ei tulevaisuusvuotoa)"
+        description: "Prior-season baseline point percentage differential (Home - Away, leak-free)"
       - name: prior_corsi_diff
-        description: "Edellisen kauden Corsi-hallintaprosentin ero (Koti - Vieras, ei tulevaisuusvuotoa)"
+        description: "Prior-season baseline Corsi 5v5 differential (Home - Away, leak-free)"
+      - name: prior_special_teams_diff
+        description: "Prior-season special teams net efficiency differential ((PP% + PK% Home) - (PP% + PK% Away))"

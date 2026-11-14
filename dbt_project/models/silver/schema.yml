@@ -10,7 +10,7 @@ models:
           - unique
           - not_null
       - name: season
-        description: "Season identifier"
+        description: "Season identifier (e.g. 20242025)"
         tests:
           - not_null
       - name: home_team_abbrev
@@ -51,10 +51,29 @@ models:
           - not_null
 
   - name: silver_games_enriched
-    description: "Enriched games dataset with prior-season team metrics (leak-free), rest days, and rolling 5/10 game form."
+    description: "Enriched game-level dataset. Filters out preseason games (game_type 1), joins leak-free prior-season team metrics, and computes rest fatigue (B2B, 3-in-4, 7-day density), cumulative in-season metrics, and rolling 5/10 form."
     columns:
       - name: game_id
         description: "Primary key"
         tests:
           - unique
           - not_null
+      - name: season
+        tests:
+          - not_null
+      - name: game_type
+        description: "Game type identifier (2 = regular season, 3 = playoffs)"
+        tests:
+          - not_null
+      - name: home_team_abbrev
+        tests:
+          - not_null
+      - name: away_team_abbrev
+        tests:
+          - not_null
+      - name: is_3_in_4_home
+        description: "Home fatigue flag: 1 if team is playing their 3rd game in 4 calendar days"
+      - name: games_last_7_days_home
+        description: "Number of games played by home team in the preceding 7 calendar days"
+      - name: home_in_season_games_played
+        description: "Cumulative games played by home team in the current season prior to this match"
