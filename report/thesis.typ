@@ -53,6 +53,7 @@
 */
 #include "chapters/johdanto.typ"
 #include "chapters/projektisuunnitelma.typ"
+#include "chapters/dataputki.typ"
 
 #template.render-ai-usage(
   language: language,

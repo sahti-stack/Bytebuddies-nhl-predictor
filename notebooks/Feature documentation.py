@@ -63,5 +63,52 @@ def _(mo):
     return
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Goals and Expected Goals (xG)
+
+    ### Actual Goals vs. Stochasticity in Ice Hockey
+    Ice hockey is inherently a low-scoring and high-variance sport compared to other major team sports. In the modern NHL, games average approximately 6.0 to 6.4 total goals (~3.1 goals per team). Realized goals in any single game or short sequence of games are heavily governed by random noise—colloquially termed "puck luck"—such as erratic goalie variance, minor deflections off skates, and screening effects (1, 4).
+
+    Because raw goals have high variance and regress strongly toward the league average, relying purely on recent actual goal counts (Goals For / Goals Against) can deceive predictive models and cause overfitting on short-term noise rather than true underlying team skill.
+
+    ### Concept of Expected Goals (xG)
+    To isolate underlying team quality from finishing luck and goaltending variance, sports analytics developed **Expected Goals ($xG$)** (1, 3). 
+    
+    An $xG$ framework estimates the probabilistic quality of every unblocked shot attempt:
+    $$xG = P(\text{Goal} \mid \mathbf{x}_{\text{shot}})$$
+    where $\mathbf{x}_{\text{shot}}$ includes shot characteristics such as:
+    - **Distance and shooting angle** to the center of the goal line.
+    - **Shot type:** Wrist shot, slap shot, backhand, deflection/tip-in, or wrap-around.
+    - **Game context:** Rebound shot (taken within 2–3 seconds of a prior save), rush shot (transition off the rush), or power play situation.
+    - **Danger zone:** High-danger scoring chances (slot and crease area) vs. perimeter low-danger attempts.
+
+    Empirical research demonstrates that shot-quality metrics and unblocked shot volumes possess vastly superior season-to-season repeatability and out-of-sample predictive power for future goal differentials and wins compared to actual past goals (2, 4).
+
+    ### Availability in NHL API & Feature Engineering Decision
+    In our project, the official NHL REST API (`api-web.nhle.com` and `api.nhle.com/stats/rest`) **does not provide pre-calculated expected goals ($xG$)**.
+
+    Calculating full native $xG$ from scratch would require:
+    1. Ingesting full play-by-play (PBP) event coordinate logs across thousands of matches (~60–70 shot events per game).
+    2. Extracting exact $(x, y)$ ice coordinates, angle geometry, and temporal rebound deltas.
+    3. Training and maintaining a separate shot-level machine learning model (e.g., gradient boosted trees on shot coordinates).
+
+    **Why raw xG was omitted and how it is proxied in the Gold layer:**
+    To maintain an efficient, reliable, and production-ready data pipeline without adding extreme latency and multi-tier model error propagation, we utilize validated, highly correlated proxy metrics available directly in our dbt Medallion pipeline:
+    - **Fenwick % (USAT - Unblocked Shot Attempts %):** Excludes blocked shots and correlates at $r > 0.95$ with cumulative $xG$ at the team level over regular season samples (1, 4).
+    - **Corsi % (SAT - Total Shot Attempts %):** Captures total territorial puck possession and offensive zone pressure.
+    - **PDO (5v5 Puck Luck Metric):** Sum of shooting percentage and save percentage ($\text{Sh\%} + \text{Sv\%}$). In the long run, team PDO regresses to 1000 (100.0%). Teams with unsustainably high PDO (> 1020) are due for downward regression, while teams with low PDO (< 980) are primed for positive regression (4).
+    - **Leak-Free Expanding & Rolling Goal Metrics:** Rather than raw season totals that cause look-ahead leakage, our dbt Gold layer computes strictly lagged expanding season averages (`home_in_season_goals_for_per_game`, `away_in_season_goals_for_per_game`) and short-term rolling momentum (`rolling_goals_for_5`, `rolling_goals_against_5`) over preceding games only.
+
+    1. Macdonald B. An expected goals model for evaluating NHL teams and players. Proceedings of the 2012 MIT Sloan Sports Analytics Conference. Saatavilla: http://www.sloansportsconference.com/wp-content/uploads/2012/02/107-Expected-goals-NHL.pdf
+    2. Thomas AC, Ventura SL, Jensen S, Ma HS. Competing process hazard function models for player ratings in ice hockey. The Annals of Applied Statistics. 2013;7(3):1497-1524.
+    3. Schuckers M, Curro J. Total Hockey Rating (THoR): A comprehensive statistical rating of National Hockey League forwards and defensemen. MIT Sloan Sports Analytics Conference. 2013.
+    4. Vollman R. Stat Shot: The Ultimate Guide to Hockey Analytics. Toronto: ECW Press; 2016.
+    5. Porela M. Predicting NHL match outcomes using a data-driven model [master's thesis]. Espoo: Aalto University; 2024. Saatavilla: https://aaltodoc.aalto.fi/server/api/core/bitstreams/c3eb25e6-a001-467d-94d6-0b6fdab2f432/content
+    """)
+    return
+
+
 if __name__ == "__main__":
     app.run()
