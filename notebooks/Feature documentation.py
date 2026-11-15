@@ -34,9 +34,13 @@ def _(mo):
     - `2` = Regular season
     - `3` = Playoffs
 
-    Preseason matches and line-ups differ from regular season games so much, so it will skew the data. Games are played at neutral sites and there is incent to get best points. Pre-season works for coaches tinker with line-up, test tryouts. Data has total of 4523 matches and 325 of them are preaseason matches, thats 7%. For these reasons, we drop the preseason matches from the dataset.
+    Preseason matches and line-ups differ from regular season games so much, so it will skew the data. Games are played at neutral sites and there is incent to get best points. Pre-season works for coaches tinker with line-up, test tryouts. Data has total of 4523 matches and 325 of them are preaseason matches, thats 7%. For these reasons, we drop the preseason matches from the dataset. (1)
 
-    https://en.wikipedia.org/wiki/Season_structure_of_the_NHL
+    Average correlation between pre-season and season match outcomes is on average 0.18. It is really far away from having a correlation near -1 or 1. So pre-season means very little what comes to the regular season success. (2)
+
+    1. https://en.wikipedia.org/wiki/Season_structure_of_the_NHL
+
+    2. https://medium.com/@mattdesfosses/the-nhl-pre-season-does-not-predict-the-regular-season-right-d554f8d44405
     """)
     return
 
