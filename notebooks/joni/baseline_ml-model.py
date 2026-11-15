@@ -4,7 +4,7 @@ __generated_with = "0.25.2"
 app = marimo.App(width="medium")
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _():
     import duckdb
     import marimo as mo
@@ -60,7 +60,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
     ### Inspect rows that has missing values
@@ -68,7 +68,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(df, pl):
     null_rows = df.filter(pl.any_horizontal(pl.all().is_null()))
     null_rows
@@ -95,7 +95,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(df, pl):
 
     schema_overview = pl.DataFrame({
@@ -106,41 +106,7 @@ def _(df, pl):
     return
 
 
-@app.cell
-def _(df, pl):
-    # 1. Game Granularity & Chronology columns
-    game_id_col = next((c for c in ["game_id", "id"] if c in df.columns), None)
-    date_season_cols = [
-        c for c in df.columns 
-        if any(k in c.lower() for k in ["date", "season", "time", "timestamp"])
-    ]
-    team_perspective_cols = [
-        c for c in df.columns 
-        if any(k in c.lower() for k in ["home", "away", "team"])
-    ]
-
-    granularity_check = pl.DataFrame({
-        "metric": [
-            "Total rows",
-            "Unique game IDs",
-            "Granularity (One row per game?)",
-            "Date / Season columns",
-            "Home / Away columns",
-        ],
-        "value": [
-            str(len(df)),
-            str(df[game_id_col].n_unique()) if game_id_col else "N/A",
-            str(len(df) == df[game_id_col].n_unique()) if game_id_col else "N/A",
-            ", ".join(date_season_cols),
-            ", ".join(team_perspective_cols),
-        ],
-    })
-
-    granularity_check
-    return
-
-
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
     ## Filter Preseason Games & Define Season Coverage
@@ -155,7 +121,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(df, pl):
     # Check game_type distribution before filtering
     game_type_counts = (
@@ -170,7 +136,7 @@ def _(df, pl):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(df, mo, pl):
     # Filter out preseason games
     filtered_games = df.filter(pl.col("game_type") != 1)
@@ -191,7 +157,7 @@ def _(df, mo, pl):
     return (filtered_games,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
     ## Structural Analysis
@@ -204,7 +170,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(filtered_games, pl):
     # 1. Perspective and Granularity
     total_filtered_rows = len(filtered_games)
@@ -241,7 +207,7 @@ def _(filtered_games, pl):
     return (detected_score_cols,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(filtered_games, pl):
     # 3. Season coverage breakdown and chronological range
     season_coverage = (
@@ -258,7 +224,7 @@ def _(filtered_games, pl):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(detected_score_cols, filtered_games):
     # 4. Score and Outcome sample preview
     score_sample_cols = list(
@@ -273,7 +239,7 @@ def _(detected_score_cols, filtered_games):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
     # Baseline model, team identities and home/away information
@@ -291,7 +257,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
     # Baseline Model: Team Identities and Home Ice
@@ -309,13 +275,25 @@ def _(mo):
     4. **Model Training:**
        - *Naive Baseline:* Predicts constant historical home win rate.
        - *Logistic Regression:* Estimates team strengths and home ice advantage via one-hot encoded team identities.
-    5. **Evaluation:** Compare probabilistic predictions using Log Loss, Brier Score, ROC AUC, and Accuracy.
+    5. **Evaluation:** Compare probabilistic predictions using Log Loss, ROC AUC, and Accuracy.
     6. **Model Diagnostics:** Plot ROC curves and inspect model-estimated team strength rankings.
     """)
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### Exploratory Visualizations: Scoring & Home Ice Advantage
+
+    We examine:
+    1. **Goal Distribution Comparison:** Frequency of goals scored by home teams versus away teams.
+    2. **Seasonal Home Advantage:** Proportion of home victories across seasons compared to the 50% parity baseline ($$p=0.50$$).
+    """)
+    return
+
+
+@app.cell(hide_code=True)
 def _(filtered_games, pl):
     # Step 1: Prepare modeling dataset using Polars
     bl_home_team_col = next((c for c in ["home_team_name", "home_team_abbrev", "home_team_common_name", "home_team", "home_team_id"] if c in filtered_games.columns), "home_team_id")
@@ -355,19 +333,7 @@ def _(filtered_games, pl):
     return (bl_data,)
 
 
-@app.cell
-def _(mo):
-    mo.md(r"""
-    ### Exploratory Visualizations: Scoring & Home Ice Advantage
-
-    We examine:
-    1. **Goal Distribution Comparison:** Frequency of goals scored by home teams versus away teams.
-    2. **Seasonal Home Advantage:** Proportion of home victories across seasons compared to the 50% parity baseline ($$p=0.50$$).
-    """)
-    return
-
-
-@app.cell
+@app.cell(hide_code=True)
 def _(alt, bl_data, pl):
     # Reshape goals for a side-by-side distribution chart
     bl_goals_long = (
@@ -422,7 +388,13 @@ def _(alt, bl_data, pl):
         .mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3, color="#2b5c8f")
         .encode(
             x=alt.X("season:N", title="Season", sort=None),
-            y=alt.Y("win_rate:Q", title="Home Win Rate", scale=alt.Scale(domain=[0.4, 0.65]), axis=alt.Axis(format="%")),
+            y=alt.Y(
+                "win_rate:Q",
+                title="Home Win Rate",
+                scale=alt.Scale(domain=[0.4, 0.65]),
+                axis=alt.Axis(format="%"),
+            ),
+            y2=alt.datum(0.4),
             tooltip=[
                 alt.Tooltip("season:N", title="Season"),
                 alt.Tooltip("games:Q", title="Games"),
@@ -446,7 +418,7 @@ def _(alt, bl_data, pl):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
     ### Chronological Train / Test Split
@@ -458,7 +430,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(bl_data, pl):
     # Split chronologically
     bl_seasons = sorted(bl_data["season"].unique().to_list())
@@ -489,27 +461,7 @@ def _(bl_data, pl):
     return bl_test, bl_train
 
 
-@app.cell
-def _(mo):
-    mo.md(r"""
-    ### Model Formulation
-
-    We compare two models:
-
-    1. **Naive Class Prior:**
-       Predicts a constant probability equal to the historical training home win rate:
-       $$\hat{p} = \bar{Y}_{\text{train}}$$
-
-    2. **Logistic Regression (Team Identities):**
-       One-hot encodes the home team and away team identifiers:
-       $$P(\text{Home Win}) = \sigma\left(\beta_0 + \sum_{j} w_{h,j} \cdot \text{Home}_j + \sum_{j} w_{a,j} \cdot \text{Away}_j\right)$$
-       - Intercept $$\beta_0$$ captures global league-wide home advantage.
-       - Coefficients $$w_{h,j}$$ and $$w_{a,j}$$ capture team-specific performance at home and away.
-    """)
-    return
-
-
-@app.cell
+@app.cell(hide_code=True)
 def _(LogisticRegression, OneHotEncoder, bl_test, bl_train, np):
     # Feature encoding and model fitting
     bl_encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
@@ -542,21 +494,20 @@ def _(LogisticRegression, OneHotEncoder, bl_test, bl_train, np):
     )
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
     ### Model Evaluation
 
     Performance is assessed using probabilistic and classification metrics:
     - **Log Loss:** Penalizes confident incorrect probabilistic predictions ($$-\frac{1}{N}\sum [y\log p + (1-y)\log(1-p)]$$).
-    - **Brier Score:** Mean squared error of predicted probabilities ($$\frac{1}{N}\sum (p - y)^2$$).
     - **ROC AUC:** Discrimination ability across all classification thresholds.
     - **Accuracy:** Proportion of correct discrete predictions at threshold $$p \ge 0.5$$.
     """)
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
     accuracy_score,
     bl_preds_lr_class,
@@ -594,7 +545,7 @@ def _(
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
     ### Model Diagnostics: ROC Curve & Team Net Strength
@@ -607,7 +558,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
     alt,
     bl_encoder,
