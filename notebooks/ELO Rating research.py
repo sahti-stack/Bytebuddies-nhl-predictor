@@ -27,7 +27,7 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    FiveThirtyEight model has been used to predict elections in USA. (1) Its also useful for making ELO-rating for NHL teams with little tuning. Where home advantage is calculated 50 to 42 and K-factor is increased from 6 to 8. At the start of the season model adds Vegas totals bias for team starting ELO. (2)
+    FiveThirtyEight model has been used to predict elections in USA. (1) Its also useful for making ELO-rating for NHL teams with little tuning. Where home advantagev (H) is calculated 50 to 42 and K-factor is increased from 6 to 8. At the start of the season model adds Vegas totals bias for team starting ELO. (2)
 
     ELO-rating of all historical games can be found in one csv that starts in year 2018.
 
@@ -46,17 +46,17 @@ def _(mo):
 
     Tuning of the model is based on K-multiplier, which is increased from 6 to 8. Multiplier can be also added to K from margin of victory, to reward high goal difference.
 
-    We need to be really careful of future data leakage when applying ELO-rating based attributes.
+    We need to be really careful of future data leakage when applying ELO-rating based attributes. Chronological ordering is required as we have done in our baseline model testing already.
 
     ELO-rating can be used in different ways as a feature. *Elo-rating* as standard baseline feature. Also we can make a *ELO-diff* between teams, that for tree models is strong feature to choose from. *ELO-win proba*, gives us precise win proba. *ELO-momentum* gives us signal with rolling numbers how the team is doing in short term.
 
     Pitfalls
 
-    Greedy XGBoost might pass on other signals if we use ELO-diff, because its to dominating feature gives most loss reduction. impurity-based feature importance for trees is strongly biased and favor high cardinality features (4). colsample_bytree / colsample_bylevel / colsample_bynode hyperparameter can fix this, needs to be tested with lower than default 1.0 value (5). Instead of ELO-diff, we can use elo-proba and turn it into log-odds and feed it to the model.
+    Greedy XGBoost might pass on other signals if we use ELO-diff, because its too dominating feature and gives most gain. impurity-based feature importance for trees is strongly biased and favor high cardinality features (4). colsample_bytree / colsample_bylevel / colsample_bynode hyperparameter can fix this, needs to be tested with lower than default 1.0 value (5). Instead of ELO-diff, we can use elo-proba and turn it into log-odds and feed it to the model as initial prediction. This way tree can fit remaining residual errors and learn from it.
 
     XGBoost: xgb.DMatrix(X, label=y, base_margin=elo_log_odds)
 
-    CatBoost: Pool(X, y, baseline=elo_log_odds)
+    CatBoost: Pool(X, y, baseline=elo_log_odds) (6)
 
     $$\text{base\_margin} = \ln\left(\frac{E_A}{1 - E_A}\right)$$
 
@@ -65,6 +65,7 @@ def _(mo):
     3. https://github.com/fivethirtyeight/data/tree/master/nhl-forecasts
     4. https://scikit-learn.org/stable/modules/permutation_importance.html
     5. https://xgboost.readthedocs.io/en/stable/parameter.html
+    6. https://catboost.ai/docs/en/concepts/python-reference_pool
     """)
     return
 
