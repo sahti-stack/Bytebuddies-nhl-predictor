@@ -23,7 +23,6 @@ def _():
         OneHotEncoder,
         accuracy_score,
         alt,
-        brier_score_loss,
         duckdb,
         log_loss,
         mo,
@@ -56,33 +55,6 @@ def _(mo):
     # Exploratory data analysis
 
     Lets start by checking data quality and then overal statistics
-    """)
-    return
-
-
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""
-    ### Inspect rows that has missing values
-    """)
-    return
-
-
-@app.cell(hide_code=True)
-def _(df, pl):
-    null_rows = df.filter(pl.any_horizontal(pl.all().is_null()))
-    null_rows
-    return
-
-
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""
-    There are missing values, because the matches are preseason matches and those are first matches of the season. game_type is 1.
-
-    Also team is totally different in preseason than start of the season, so we can drop preseason completely.
-
-    https://en.wikipedia.org/wiki/Season_structure_of_the_NHL
     """)
     return
 
@@ -242,28 +214,10 @@ def _(detected_score_cols, filtered_games):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    # Baseline model, team identities and home/away information
-
-    This is our baseline model
-
-    ### Plan:
-    1. **Target:** Y=1, home-win, Y=0, away-win
-    2. **Exploratory Visualizations:** Analyze historical home-ice advantage across seasons and goal distributions.
-    3. **Validation Strategy:** Set up a strict chronological train/test split (no lookahead data leakage!).
-    4. **Features:** Use solely Home Team and Away Team categorical identities (one-hot encoded) to capture baseline team strength and home-ice premium.
-    5. **Model & Metrics:** Train a Logistic Regression baseline and compare it against a naive class-prior baseline using **Log Loss**, **Brier Score**, **ROC AUC**, and **Accuracy**.
-    6. **Diagnostic Visualizations:** Plot ROC curves and inspect model-learned team ratings.
-    """)
-    return
-
-
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""
     # Baseline Model: Team Identities and Home Ice
 
     ### Objective
-    Construct a simple, transparent baseline model to predict regular season game outcomes ($$Y=1$$ for home win, $$Y=0$$ for away win) using only:
+    Construct a simple, transparent baseline model to predict regular season game outcomes (1 for home win, 0 for away win) using only:
     - **Home / Away designation**
     - **Team identities**
     - **Final scores** (used strictly to define match outcomes)
@@ -515,7 +469,6 @@ def _(
     bl_preds_naive_class,
     bl_preds_naive_prob,
     bl_y_test,
-    brier_score_loss,
     log_loss,
     pl,
     roc_auc_score,
@@ -526,10 +479,6 @@ def _(
         "Log Loss (lower is better)": [
             round(log_loss(bl_y_test, bl_preds_naive_prob), 4),
             round(log_loss(bl_y_test, bl_preds_lr_prob), 4),
-        ],
-        "Brier Score (lower is better)": [
-            round(brier_score_loss(bl_y_test, bl_preds_naive_prob), 4),
-            round(brier_score_loss(bl_y_test, bl_preds_lr_prob), 4),
         ],
         "ROC AUC (higher is better)": [
             round(roc_auc_score(bl_y_test, bl_preds_naive_prob), 4),
