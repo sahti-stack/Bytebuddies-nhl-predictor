@@ -63,10 +63,32 @@ def _(df, pl):
 
 
 @app.cell
-def _(df):
-    # Check null counts
-    nulls = df.null_count()
-    nulls.select([col for col in nulls.columns if nulls[col][0] > 0])
+def _(df, pl):
+    # Get a list of only the columns that have at least one null
+    null_cols = [col for col in df.columns if df[col].null_count() > 0]
+
+    # Build a list 
+    cols_to_show = list(
+        dict.fromkeys(["season", "home_team_abbrev", "away_team_abbrev", "game_type"] + null_cols)
+    )
+
+    # filter rows that have nulls
+    null_rows = df.filter(pl.any_horizontal(pl.col(null_cols).is_null())).select(
+        cols_to_show
+    )
+
+    null_rows
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    We have couple of null values that we have to solve:
+
+    - We have to get 2021-2022 season stats to fill the prior columns of season 2022-2023. 2021-season will be only used to fill the prior numbers, not for training.
+    - UTA team_abbrev has taken over ARI.
+    """)
     return
 
 
@@ -92,10 +114,21 @@ def _(mo):
 
     *game_date*
 
-    ### used as team identifier:
+    ### used as team identifier, not a feature:
 
     *home_team_abbrev*
+
     *away_team_abbrev*
+
+    ## dropped features
+
+    We drop playoffs and pre-season, only regular season is used
+
+    *game_type = 2*
+
+    Data has target leakage, model can use that to tell which team will win. We will drop them.
+
+    *home_score* *away_score* *total_goals* *goal_diff* *home_win* *away_win* *is_regulation* *is_overtime*
     """)
     return
 
