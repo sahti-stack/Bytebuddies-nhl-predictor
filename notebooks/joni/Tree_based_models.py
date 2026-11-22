@@ -28,7 +28,12 @@ def _(mo):
 @app.cell
 def _(duckdb):
     con = duckdb.connect("../data/warehouse/dev.duckdb")
-    df = con.sql("SELECT * FROM gold.gold_games").pl()
+    df = con.sql("""
+        SELECT * 
+        FROM gold.gold_games 
+        WHERE season != 20212022
+    """).pl()
+
     print(df.head())
     return (df,)
 
@@ -87,7 +92,7 @@ def _(mo):
     We have couple of null values that we have to solve:
 
     - We have to get 2021-2022 season stats to fill the prior columns of season 2022-2023. 2021-season will be only used to fill the prior numbers, not for training.
-    - UTA team_abbrev has taken over ARI.
+    - UTA team_abbrev has taken over ARI when they bought the team. Roster and management stayed the same, so we can keep them as same team in the dataset.
     """)
     return
 

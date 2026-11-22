@@ -2,8 +2,20 @@ WITH games AS (
     -- Exclude preseason games (game_type = 1) at the silver layer.
     -- Include only competitive regular season (2) and playoff (3) games,
     -- ensuring models train and predict solely on meaningful official competition.
-    SELECT * FROM {{ ref('stg_games') }}
-    WHERE game_type IN (2, 3)
+    --
+    -- Resolve each official team_id to its franchise lineage_id. This keeps
+    -- Arizona (53) and Utah (59) continuous for prior-season joins while the
+    -- official team_id / team_abbrev / team_name columns remain untouched.
+    SELECT
+        g.*,
+        COALESCE(hl.lineage_id, g.home_team_id) AS home_lineage_id,
+        COALESCE(al.lineage_id, g.away_team_id) AS away_lineage_id
+    FROM {{ ref('stg_games') }} g
+    LEFT JOIN {{ ref('silver_team_lineage') }} hl
+        ON g.home_team_id = hl.team_id
+    LEFT JOIN {{ ref('silver_team_lineage') }} al
+        ON g.away_team_id = al.team_id
+    WHERE g.game_type IN (2, 3)
 ),
 
 team_metrics AS (
@@ -175,9 +187,11 @@ SELECT
     g.home_team_id,
     g.home_team_abbrev,
     g.home_team_name,
+    g.home_lineage_id,
     g.away_team_id,
     g.away_team_abbrev,
     g.away_team_name,
+    g.away_lineage_id,
 
     -- Match outcome targets for ML models
     g.home_score,
@@ -273,7 +287,7 @@ LEFT JOIN away_team_features af
     ON g.game_id = af.game_id
 LEFT JOIN team_metrics hm
     ON (g.season - 10001) = hm.season
-    AND (g.home_team_id = hm.team_id OR g.home_team_abbrev = hm.team_abbrev)
+    AND g.home_lineage_id = hm.lineage_id
 LEFT JOIN team_metrics am
     ON (g.season - 10001) = am.season
-    AND (g.away_team_id = am.team_id OR g.away_team_abbrev = am.team_abbrev)
+    AND g.away_lineage_id = am.lineage_id

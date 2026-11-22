@@ -25,6 +25,14 @@ models:
         description: "Away team 3-letter abbreviation"
         tests:
           - not_null
+      - name: home_lineage_id
+        description: "Synthetic franchise continuity key for the home team (ARI 53 and UTA 59 -> 53). Identifier only; must not be used as an ML feature."
+        tests:
+          - not_null
+      - name: away_lineage_id
+        description: "Synthetic franchise continuity key for the away team (ARI 53 and UTA 59 -> 53). Identifier only; must not be used as an ML feature."
+        tests:
+          - not_null
       - name: is_played
         description: "Boolean flag: TRUE if match is completed, FALSE for upcoming scheduled fixtures"
         tests:

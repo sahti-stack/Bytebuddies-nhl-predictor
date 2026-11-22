@@ -20,6 +20,7 @@ graph LR
         S3["silver.stg_team_percentages"]
         S4["silver.silver_team_metrics"]
         S5["silver.silver_games_enriched"]
+        S6["silver.silver_team_lineage"]
     end
 
     subgraph Gold ["🥇 Gold (ML Feature Stores)"]
@@ -33,9 +34,12 @@ graph LR
 
     S2 --> S4
     S3 --> S4
+    S2 --> S6
+    S6 --> S4
 
     S1 --> S5
     S4 --> S5
+    S6 --> S5
 
     S5 --> G1
     S5 --> G2
@@ -54,9 +58,11 @@ graph LR
 - **[stg_games.sql](file:///C:/Users/kompl/code/2026/Projektir2/dbt_project/models/silver/stg_games.sql)**: Deduplicated and typed matches (`game_date` as `DATE`, `is_played`, `home_win`, `away_win`, `total_goals`, `goal_diff`, `is_overtime`).
 - **[stg_team_stats.sql](file:///C:/Users/kompl/code/2026/Projektir2/dbt_project/models/silver/stg_team_stats.sql)**: Deduplicated and formatted team season averages (points, goals for/against, PP%, PK%, shots).
 - **[stg_team_percentages.sql](file:///C:/Users/kompl/code/2026/Projektir2/dbt_project/models/silver/stg_team_percentages.sql)**: Advanced metrics: Corsi (`sat_pct`), Fenwick (`usat_pct`), PDO (`5v5`).
-- **[silver_team_metrics.sql](file:///C:/Users/kompl/code/2026/Projektir2/dbt_project/models/silver/silver_team_metrics.sql)**: Combined team summary with basic and advanced metrics per season.
+- **[silver_team_lineage.sql](file:///C:/Users/kompl/code/2026/Projektir2/dbt_project/models/silver/silver_team_lineage.sql)**: Team continuity crosswalk with one row per official `team_id` and a synthetic `lineage_id`. Arizona (53) and Utah (59) both map to `lineage_id` 53, preserving prior-season features across the relocation/rebrand.
+- **[silver_team_metrics.sql](file:///C:/Users/kompl/code/2026/Projektir2/dbt_project/models/silver/silver_team_metrics.sql)**: Combined team summary with basic and advanced metrics per season, including `lineage_id`.
 - **[silver_games_enriched.sql](file:///C:/Users/kompl/code/2026/Projektir2/dbt_project/models/silver/silver_games_enriched.sql)**: Match-level enrichment:
   - Matchup team metrics (Home & Away stats joined).
+  - Leak-free prior-season metrics joined on `(season, lineage_id)`, keeping ARI (53) and UTA (59) continuous.
   - Rest days and Back-to-Back (`is_b2b_home`, `is_b2b_away`) tracking.
   - Rolling 5 & 10 game form (win rate, goals scored, goals allowed) prior to each match (no data leakage).
 

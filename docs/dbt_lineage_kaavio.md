@@ -34,6 +34,7 @@ graph LR
         stg_games["stg_games<br/>(Tyypitys, tulosliput, deduplikointi)"]
         stg_team_stats["stg_team_stats<br/>(Kausitilastojen siivous)"]
         stg_team_percentages["stg_team_percentages<br/>(Kehittyneiden tilastojen siivous)"]
+        silver_team_lineage["silver_team_lineage<br/>(Virallinen team_id -> lineage_id)"]
         silver_team_metrics["silver_team_metrics<br/>(Yhdistetty joukkueprofiili)"]
         silver_games_enriched["silver_games_enriched<br/>(Lepopäivät & rolling 5/10 kuntopuntari)"]
     end
@@ -59,11 +60,14 @@ graph LR
     bronze_team_percentages -->|ref| stg_team_percentages
 
     %% Silver Joins & Transforms
+    stg_team_stats -->|ref| silver_team_lineage
     stg_team_stats -->|ref| silver_team_metrics
     stg_team_percentages -->|ref| silver_team_metrics
+    silver_team_lineage -->|ref| silver_team_metrics
 
     stg_games -->|ref| silver_games_enriched
     silver_team_metrics -->|ref| silver_games_enriched
+    silver_team_lineage -->|ref| silver_games_enriched
 
     %% Silver -> Gold
     silver_games_enriched -->|ref| gold_games
@@ -103,14 +107,21 @@ Jos lepopäiviä on tasan 1, kyseessä on peräkkäisinä päivinä pelaaminen (
 ### 2.5 DuckDB sulautettuna analyysitietokantana
 - **Perustelu:** DuckDB on sarakeorientoitunut (columnar) OLAP-kanta, joka suorittaa analyyttiset kyselyt, aggregoinnit ja ikkunafunktiot huomattavasti nopeammin kuin SQLite tai Pandas. Se toimii paikallisesti ilman erillistä palvelinta, jolloin jokainen tiimin jäsen voi ajaa koodia suoraan omalta koneeltaan ilman Docker- tai pilvikonfiguraatioita.
 
+### 2.6 Joukkuejatkuvuus (franchise-lineage) ja ARI → UTA
+- NHL:n virallinen `team_id` ei aina vastaa joukkueen todellista jatkuvuutta. Arizona Coyotes pelasi `team_id`-tunnuksella 53, kun taas Utah Hockey Club (2024-25) ja Utah Mammoth (2025-26+) käyttävät `team_id`-tunnusta 59.
+- Utah peri Arizonan hockey operations -toiminnot, joten prior-kauden vertailuluvut (esim. edellisen kauden Corsi ja PDO) kuuluvat laskea saman joukkuejatkumon sisällä. Ilman tätä Utahin ensimmäisen kauden kaikki prior-piirteet jäisivät `NULL`-arvoiksi.
+- **Ratkaisu:** `silver_team_lineage` muodostaa yhden rivin jokaista virallista `team_id`-tunnusta kohden ja lisää synteettisen `lineage_id`-avaimen. Malli mappaa Arizonan (53) ja Utahin (59) arvoon 53. Virallisia tunnisteita (`team_id`, `team_abbrev`, `team_name`) ei korvata, vaan ne säilyvät Gold-taulussa auditointia ja raportointia varten.
+- `silver_games_enriched` liittää prior-kauden metriikat avaimella `(season - 10001, lineage_id)`, jolloin ARI 2023-24 toimii UTA 2024-25:n baseline-na. Koska Utahin `team_id` 59 pysyy samana myös kaudella 2025-26 (Utah Mammoth), rebrand ei vaadi uutta ingestiota eikä nimeen perustuvaa liitosta.
+- `lineage_id` on vain liitos- ja auditointiavain, ei koneoppimispiirre. Testit varmistavat, ettei `(season, lineage_id)` vastaa useampaa virallista joukkuetta, että prior-metriikat eivät jää `NULL`-arvoiksi silloin kun edellisen kauden data on olemassa, ja että UTA 2024-25:n baseline vastaa ARI 2023-24:n riviä.
+
 ---
 
 ## 3. Mikä toteutuksessa on hyvää? (Vahvuudet)
 
 1. **Nopeus ja keveys:**
-   - Koko kauden (1 504 ottelua ja 32 joukkueen metriikat) dbt-ajaminen (kaikki 9 taulua) vie DuckDB:llä vain **noin 1 sekunnin** (`1.08s`).
+   - Koko kauden (1 504 ottelua ja 32 joukkueen metriikat) dbt-ajaminen (kaikki 10 taulua) vie DuckDB:llä vain **noin 1 sekunnin** (`1.08s`).
 2. **Automaattinen laadunvarmistus (Data Testing):**
-   - Projektissa on 30 automaattista dbt-testiä, jotka kattavat Bronze-, Silver- ja Gold-kerrokset. Ne varmistavat pääavainten uniikkiuden (`game_id unique`) ja kriittisten kenttien (`not_null`) eheyden jokaisella ajolla.
+   - Projektissa on 47 automaattista dbt-testiä, jotka kattavat Bronze-, Silver- ja Gold-kerrokset. Ne varmistavat pääavainten uniikkiuden (`game_id unique`) ja kriittisten kenttien (`not_null`) eheyden jokaisella ajolla.
 3. **Yhtenäinen lähde totuudelle (Single Source of Truth):**
    - Jos laskentalogiikkaa (esim. lepopäivien laskentaa tai kuntopuntaria) täytyy säätää, muutos tehdään vain yhteen Silver-tiedostoon, ja uusi logiikka heijastuu suoraan Gold-kerrokseen.
 4. **Täysin riippumaton ML-rajapinta:**

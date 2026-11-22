@@ -40,10 +40,31 @@ models:
         tests:
           - not_null
 
+  - name: silver_team_lineage
+    description: "Team continuity crosswalk. One row per official NHL team_id, adding a synthetic lineage_id for franchise / hockey-operations continuity. Arizona (53) and Utah (59) both map to lineage_id 53 because Utah inherited Arizona's hockey operations in 2024-25."
+    columns:
+      - name: team_id
+        description: "Official NHL team identifier (never overwritten or remapped)"
+        tests:
+          - unique
+          - not_null
+      - name: lineage_id
+        description: "Synthetic continuity key used for prior-season joins. ARI (53) and UTA (59) both map to 53."
+        tests:
+          - not_null
+      - name: is_lineage_override
+        description: "TRUE when lineage_id differs from the official team_id"
+        tests:
+          - not_null
+
   - name: silver_team_metrics
     description: "Consolidated team metrics combining basic stats and advanced analytics."
     columns:
       - name: team_id
+        tests:
+          - not_null
+      - name: lineage_id
+        description: "Synthetic franchise continuity key. ARI (53) and UTA (59) both map to 53."
         tests:
           - not_null
       - name: season
@@ -51,7 +72,7 @@ models:
           - not_null
 
   - name: silver_games_enriched
-    description: "Enriched game-level dataset. Filters out preseason games (game_type 1), joins leak-free prior-season team metrics, and computes rest fatigue (B2B, 3-in-4, 7-day density), cumulative in-season metrics, and rolling 5/10 form."
+    description: "Enriched game-level dataset. Filters out preseason games (game_type 1), joins leak-free prior-season team metrics on (season, lineage_id), and computes rest fatigue (B2B, 3-in-4, 7-day density), cumulative in-season metrics, and rolling 5/10 form."
     columns:
       - name: game_id
         description: "Primary key"
@@ -69,6 +90,14 @@ models:
         tests:
           - not_null
       - name: away_team_abbrev
+        tests:
+          - not_null
+      - name: home_lineage_id
+        description: "Synthetic franchise continuity key for the home team (ARI 53 and UTA 59 -> 53). Used only for prior-season joins; not an ML feature."
+        tests:
+          - not_null
+      - name: away_lineage_id
+        description: "Synthetic franchise continuity key for the away team (ARI 53 and UTA 59 -> 53). Used only for prior-season joins; not an ML feature."
         tests:
           - not_null
       - name: is_3_in_4_home

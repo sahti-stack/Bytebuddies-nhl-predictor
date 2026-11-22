@@ -18,14 +18,18 @@ SELECT
 
     -- =========================================================================
     -- TEAM IDENTIFIERS
-    -- Official team IDs, 3-letter abbreviations, and franchise names
+    -- Official team IDs, 3-letter abbreviations, and franchise names.
+    -- `*_lineage_id` is a synthetic continuity key used only for leak-free
+    -- prior-season joins (ARI 53 and UTA 59 share lineage_id 53).
     -- =========================================================================
     home_team_id,
     home_team_abbrev,
     home_team_name,
+    home_lineage_id,
     away_team_id,
     away_team_abbrev,
     away_team_name,
+    away_lineage_id,
 
     -- =========================================================================
     -- OUTCOMES & PREDICTION TARGETS

@@ -4,6 +4,10 @@ WITH stats AS (
 
 percentages AS (
     SELECT * FROM {{ ref('stg_team_percentages') }}
+),
+
+lineage AS (
+    SELECT * FROM {{ ref('silver_team_lineage') }}
 )
 
 SELECT
@@ -11,6 +15,7 @@ SELECT
     s.team_id,
     s.team_abbrev,
     s.team_name,
+    COALESCE(l.lineage_id, s.team_id) AS lineage_id,
     s.games_played,
     s.wins,
     s.losses,
@@ -31,4 +36,6 @@ SELECT
 FROM stats s
 LEFT JOIN percentages p
     ON s.season = p.season
-    AND (s.team_id = p.team_id OR s.team_abbrev = p.team_abbrev)
+    AND s.team_id = p.team_id
+LEFT JOIN lineage l
+    ON s.team_id = l.team_id
