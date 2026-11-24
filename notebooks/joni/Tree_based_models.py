@@ -9,13 +9,24 @@ def _():
     import duckdb
     import marimo as mo
     import polars as pl
+    import numpy as np
     import altair
     import datetime as dt
 
     from sklearn.metrics import accuracy_score, roc_auc_score, brier_score_loss
     from sklearn.metrics import log_loss, roc_curve
 
-    return dt, duckdb, mo, pl
+    return (
+        accuracy_score,
+        brier_score_loss,
+        dt,
+        duckdb,
+        log_loss,
+        mo,
+        np,
+        pl,
+        roc_auc_score,
+    )
 
 
 @app.cell(hide_code=True)
@@ -241,6 +252,43 @@ def _(y_test, y_train, y_val):
     print(f"home win mean vaildation set: {y_val.mean()}")
     print(f"home win mean test set: {y_test.mean()}")
 
+    return
+
+
+@app.cell
+def _(
+    accuracy_score,
+    brier_score_loss,
+    log_loss,
+    np,
+    roc_auc_score,
+    y_train,
+    y_val,
+):
+    # lets calculate historical probability of home win
+    p_naive = float(y_train.mean())
+
+    # Vectors len of validation group
+
+    y_val_prob_naive = np.full(len(y_val), fill_value=p_naive)
+
+    # hard coded prob, always 1 so always home win
+    y_val_pred_naive = np.ones(len(y_val))
+
+    # Metrics for naive
+
+    print("metrics for naive baseline with validation data")
+    print(f"Accuracy: {accuracy_score(y_val, y_val_pred_naive)}")
+    print(f"ROC-AUC: {roc_auc_score(y_val, y_val_prob_naive)}")
+    print(f"Brier Score(MSE): {brier_score_loss(y_val, y_val_prob_naive)}")
+    print(f"Log loss: {log_loss(y_val, y_val_prob_naive)}")
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    """)
     return
 
 
