@@ -13,6 +13,8 @@ def _():
     import altair as alt
     import datetime as dt
 
+    from sklearn.preprocessing import OrdinalEncoder
+
     from sklearn.metrics import accuracy_score, roc_auc_score, brier_score_loss
     from sklearn.metrics import log_loss, roc_curve
     from sklearn.inspection import permutation_importance
@@ -26,6 +28,7 @@ def _():
     return (
         DecisionTreeClassifier,
         HistGradientBoostingClassifier,
+        OrdinalEncoder,
         RandomForestClassifier,
         SimpleImputer,
         accuracy_score,
@@ -512,6 +515,14 @@ def _(HistGradientBoostingClassifier, X_train, X_val, y_train):
     return hgb_model, y_val_pred_hgb, y_val_prob_hgb
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    Tried getting better results altering learning_rate and min_samples_leaf, but got best results without them
+    """)
+    return
+
+
 @app.cell
 def _(
     accuracy_score,
@@ -524,7 +535,7 @@ def _(
     y_val_prob_hgb,
     y_val_prob_rf,
 ):
-    print("HistGradientBoosting vs. earlier")
+    print("HistGradientBoosting vs. earlier. Best trees had depth of 1")
     print(f"Accuracy:    {accuracy_score(y_val, y_val_pred_hgb)}  (RF: {accuracy_score(y_val, y_val_pred_rf)})")
     print(f"ROC-AUC:     {roc_auc_score(y_val, y_val_prob_hgb)}  (RF: {roc_auc_score(y_val, y_val_prob_rf)})")
     print(f"Brier Score: {brier_score_loss(y_val, y_val_prob_hgb)}  (RF: {brier_score_loss(y_val, y_val_prob_rf)})")
@@ -652,6 +663,96 @@ def _(alt, diagonal_df, roc_all_df):
     )
 
     all_roc_chart  # Palautetaan kuvaaja
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### Extra study hypothesis
+    Earlier baseline model learned alot just getting team names, lets test how much it helps model to predict.
+
+    Other hypothesis is that SimpleImpute is too simple and for the first 10 games it evens the teams too much. Lets find algorithm to fill the Nulls with better accuracy base on studies. So how close Decision tree gets to LightGBM.
+    """)
+    return
+
+
+@app.cell
+def _(
+    OrdinalEncoder,
+    X_train,
+    X_val,
+    feature_cols,
+    pl,
+    train_df,
+    validation_df,
+):
+    # Lets add team names to feature cols
+    feature_and_team_cols = feature_cols + ["home_team_abbrev", "away_team_abbrev"]
+
+    # 2. Lets take data
+    X_train_teams = train_df.select(feature_and_team_cols)
+    X_val_teams = validation_df.select(feature_and_team_cols)
+
+    # encode team name to numbers
+    encoder = OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)
+    teams_train_encoded = encoder.fit_transform(X_train_teams.select(["home_team_abbrev", "away_team_abbrev"]).to_numpy())
+    teams_val_encoded = encoder.transform(X_val_teams.select(["home_team_abbrev", "away_team_abbrev"]).to_numpy())
+
+    # connect encoded team names to DataFrame
+    X_train_with_teams = X_train.with_columns([
+        pl.Series("home_team_encoded", teams_train_encoded[:, 0]),
+        pl.Series("away_team_encoded", teams_train_encoded[:, 1])
+    ])
+
+    X_val_with_teams = X_val.with_columns([
+        pl.Series("home_team_encoded", teams_val_encoded[:, 0]),
+        pl.Series("away_team_encoded", teams_val_encoded[:, 1])
+    ])
+    return X_train_with_teams, X_val_with_teams
+
+
+@app.cell
+def _(
+    HistGradientBoostingClassifier,
+    X_train_with_teams,
+    X_val_with_teams,
+    y_train,
+):
+    # Lets tell that two last cols are categorical
+    cat_indices = [
+        X_train_with_teams.columns.index("home_team_encoded"),
+        X_train_with_teams.columns.index("away_team_encoded")
+    ]
+
+    hgb_teams_model = HistGradientBoostingClassifier(
+        max_iter=100,
+        max_depth=1,
+        categorical_features=cat_indices,
+        random_state=42
+    )
+
+    # Lets train
+    hgb_teams_model.fit(X_train_with_teams, y_train)
+
+    # Predict
+    y_val_prob_hgb_teams = hgb_teams_model.predict_proba(X_val_with_teams)[:, 1]
+    y_val_pred_hgb_teams = hgb_teams_model.predict(X_val_with_teams)
+    return (y_val_prob_hgb_teams,)
+
+
+@app.cell
+def _(log_loss, roc_auc_score, y_val, y_val_prob_hgb, y_val_prob_hgb_teams):
+    print("stats vs. stats + team names")
+    print(f"ROC-AUC without names: {roc_auc_score(y_val, y_val_prob_hgb)}")
+    print(f"ROC-AUC with names: {roc_auc_score(y_val, y_val_prob_hgb_teams)}")
+    print(f"Log Loss without names: {log_loss(y_val, y_val_prob_hgb)}")
+    print(f"Log Loss with names: {log_loss(y_val, y_val_prob_hgb_teams)}")
+    return
+
+
+@app.cell
+def _():
     return
 
 
