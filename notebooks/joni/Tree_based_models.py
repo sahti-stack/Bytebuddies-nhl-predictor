@@ -15,14 +15,17 @@ def _():
 
     from sklearn.metrics import accuracy_score, roc_auc_score, brier_score_loss
     from sklearn.metrics import log_loss, roc_curve
+    from sklearn.inspection import permutation_importance
 
     from sklearn.impute import SimpleImputer
 
     from sklearn.tree import DecisionTreeClassifier
     from sklearn.ensemble import RandomForestClassifier
+    from sklearn.ensemble import HistGradientBoostingClassifier
 
     return (
         DecisionTreeClassifier,
+        HistGradientBoostingClassifier,
         RandomForestClassifier,
         SimpleImputer,
         accuracy_score,
@@ -33,6 +36,7 @@ def _():
         log_loss,
         mo,
         np,
+        permutation_importance,
         pl,
         roc_auc_score,
         roc_curve,
@@ -478,17 +482,128 @@ def _(
     return
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    LightGBM training
+    """)
+    return
+
+
 @app.cell
-def _(pl, roc_auc_score, roc_curve, y_val, y_val_prob_rf, y_val_prob_tree):
-    # Decision tree points and AUC
+def _(HistGradientBoostingClassifier, X_train, X_val, y_train):
+    #init model
+    # max_iter = amount of trees
+    # max_depth = As seen, lets keep trees low so test with 2 to 4
+
+    hgb_model = HistGradientBoostingClassifier(
+        max_iter = 100,
+        max_depth = 1,
+        random_state = 42
+    )
+
+    # Lets train it without imputer
+    hgb_model.fit(X_train, y_train)
+
+    # Predict with validation data
+
+    y_val_prob_hgb = hgb_model.predict_proba(X_val)[:,1]
+    y_val_pred_hgb = hgb_model.predict(X_val)
+    return hgb_model, y_val_pred_hgb, y_val_prob_hgb
+
+
+@app.cell
+def _(
+    accuracy_score,
+    brier_score_loss,
+    log_loss,
+    roc_auc_score,
+    y_val,
+    y_val_pred_hgb,
+    y_val_pred_rf,
+    y_val_prob_hgb,
+    y_val_prob_rf,
+):
+    print("HistGradientBoosting vs. earlier")
+    print(f"Accuracy:    {accuracy_score(y_val, y_val_pred_hgb)}  (RF: {accuracy_score(y_val, y_val_pred_rf)})")
+    print(f"ROC-AUC:     {roc_auc_score(y_val, y_val_prob_hgb)}  (RF: {roc_auc_score(y_val, y_val_prob_rf)})")
+    print(f"Brier Score: {brier_score_loss(y_val, y_val_prob_hgb)}  (RF: {brier_score_loss(y_val, y_val_prob_rf)})")
+    print(f"Log Loss:    {log_loss(y_val, y_val_prob_hgb)}  (RF: {log_loss(y_val, y_val_prob_rf)})")
+    return
+
+
+@app.cell
+def _(X_val, feature_cols, hgb_model, permutation_importance, pl, y_val):
+    # Calculate permutation importance in validation data
+
+    perm_importance = permutation_importance(
+        hgb_model, 
+        X_val, 
+        y_val, 
+        n_repeats=10, 
+        random_state=42, 
+        scoring="roc_auc"
+    )
+
+    #Lets make Polars DataGrame from the resulta
+    importance_df = pl.DataFrame({
+        "feature": feature_cols,
+        "importance_mean": perm_importance.importances_mean,
+        "importance_std": perm_importance.importances_std
+    }).sort("importance_mean", descending=True)
+
+    # Katsotaan 10 parasta!
+    importance_df.head(10)
+    return
+
+
+@app.cell
+def _(
+    roc_auc_score,
+    roc_curve,
+    y_val,
+    y_val_prob_hgb,
+    y_val_prob_rf,
+    y_val_prob_tree,
+):
+    # 1. Decision Tree
     auc_tree = roc_auc_score(y_val, y_val_prob_tree)
     fpr_tree, tpr_tree, _ = roc_curve(y_val, y_val_prob_tree)
 
-    # Random Forest points and AUC
+    # 2. Random Forest
     auc_rf = roc_auc_score(y_val, y_val_prob_rf)
     fpr_rf, tpr_rf, _ = roc_curve(y_val, y_val_prob_rf)
 
-    roc_df = pl.concat([
+    # 3. HistGradientBoosting 
+    auc_hgb = roc_auc_score(y_val, y_val_prob_hgb)
+    fpr_hgb, tpr_hgb, _ = roc_curve(y_val, y_val_prob_hgb)
+    return (
+        auc_hgb,
+        auc_rf,
+        auc_tree,
+        fpr_hgb,
+        fpr_rf,
+        fpr_tree,
+        tpr_hgb,
+        tpr_rf,
+        tpr_tree,
+    )
+
+
+@app.cell
+def _(
+    auc_hgb,
+    auc_rf,
+    auc_tree,
+    fpr_hgb,
+    fpr_rf,
+    fpr_tree,
+    pl,
+    tpr_hgb,
+    tpr_rf,
+    tpr_tree,
+):
+    roc_all_df = pl.concat([
         pl.DataFrame({
             "fpr": fpr_tree,
             "tpr": tpr_tree,
@@ -498,24 +613,28 @@ def _(pl, roc_auc_score, roc_curve, y_val, y_val_prob_rf, y_val_prob_tree):
             "fpr": fpr_rf,
             "tpr": tpr_rf,
             "Model": f"Random Forest (AUC = {auc_rf:.3f})"
+        }),
+        pl.DataFrame({
+            "fpr": fpr_hgb,
+            "tpr": tpr_hgb,
+            "Model": f"HistGradientBoosting (AUC = {auc_hgb:.3f})"
         })
     ])
 
-    # Reference line
     diagonal_df = pl.DataFrame({"fpr": [0.0, 1.0], "tpr": [0.0, 1.0]})
-    return diagonal_df, roc_df
+    return diagonal_df, roc_all_df
 
 
 @app.cell
-def _(alt, diagonal_df, roc_df):
-    # Model curves
-    chart_models = alt.Chart(roc_df).mark_line(strokeWidth=2.5).encode(
+def _(alt, diagonal_df, roc_all_df):
+    # All models curves
+    chart_models = alt.Chart(roc_all_df).mark_line(strokeWidth=2.5).encode(
         x=alt.X("fpr:Q", title="False Positive Rate", scale=alt.Scale(domain=[0, 1])),
         y=alt.Y("tpr:Q", title="True Positive Rate", scale=alt.Scale(domain=[0, 1])),
         color=alt.Color("Model:N", title="Model")
     )
 
-    # Coin flip
+    # Coinflip
     chart_diagonal = alt.Chart(diagonal_df).mark_line(
         strokeDash=[5, 5], 
         color="gray", 
@@ -525,14 +644,14 @@ def _(alt, diagonal_df, roc_df):
         y="tpr:Q"
     )
 
-    # Charts together
-    roc_chart = (chart_diagonal + chart_models).properties(
-        title="Roc-curves side by side",
-        width=500,
+    # conc all together to chart
+    all_roc_chart = (chart_diagonal + chart_models).properties(
+        title="Kaikkien mallien ROC-vertailu validointidatalla",
+        width=550,
         height=400
     )
 
-    roc_chart
+    all_roc_chart  # Palautetaan kuvaaja
     return
 
 
