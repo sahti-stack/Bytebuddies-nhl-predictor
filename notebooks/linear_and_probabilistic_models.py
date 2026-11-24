@@ -54,7 +54,7 @@ def _(mo):
     # 🏒 Lineaariset ja todennäköisyyspohjaiset mallit (Regularisoitu Logistinen Regressio, Ridge)
     ## Vertailu Jonin Sprint 1:n baseline-malliin, sarjataulukkoon ja kotietuun
 
-    ### 📌 Viikon tutkimuskysymys:
+    ### 📌 Tutkimuskysymys ja tavoite:
     > **"Selvitetään, mikä mallityyppi ennustaa NHL-voittajaa parhaiten ja voittaako koneoppiminen pelkän kotietu- tai sarjataulukkobaselinen."**
 
     Tässä analyysissä toteutetaan, kalibroidaan ja arvioidaan lineaariset ja todennäköisyyspohjaiset luokittelijat:
@@ -589,8 +589,24 @@ def _(alt, lr_l1, mo, num_cols, pl):
 
 
 @app.cell(hide_code=True)
-def _(l1_chart):
-    l1_chart
+def _(l1_chart, mo):
+    mo.vstack([
+        l1_chart,
+        mo.md(r"""
+        #### 💡 Miten tätä kuvaajaa ja kertoimia luetaan?
+
+        L1-regularisointi (Lasso, $C=0.05$) toimi automaattisena karsintana. Vaaka-akselilla on kunkin standardoidun piirteen logistinen kerroin ($\beta_j$):
+        * 🟢 **Vihreä ($\beta > 0$):** Piirteen kasvu **lisää** kotivoiton todennäköisyyttä.
+        * 🔴 **Punainen ($\beta < 0$):** Piirteen kasvu **heikentää** kotivoiton todennäköisyyttä.
+        * ⚪ **Ei palkkia ($\beta = 0$):** Malli nollasi piirteen kokonaan tarpeettomana tai kohinaisena.
+
+        | Piirre | Kerroin ($\beta$) | Mitä tämä tarkoittaa käytännössä jääkiekossa? |
+        | :--- | :---: | :--- |
+        | **`games_last_7_days_diff`** | **$-0.0585$** | **Otteluruuhka heikentää voittomahdollisuutta:** Jos kotijoukkueella on viimeisen 7 päivän ajalta enemmän otteluita takana kuin vieraalla, fyysinen maitohappokuorma ja matkustusrasitus kääntävät edun vieraalle. |
+        | **`in_season_goals_for_diff_per_game`** | **$+0.0213$** | **Koko kauden hyökkäysteho lisää voiton todennäköisyyttä:** Kyky tuottaa ja viimeistellä maaleja pitkässä sarjassa on vahvin yksittäinen pelivoiman indikaattori. |
+        | **Muut 12 piirrettä** *(lepopäivät, 5 ja 10 ottelun kuntopuntari jne.)* | **$0.0000$** | **Nollattu kohinan tai päällekkäisyyden vuoksi:** 5 ottelun kuntopuntarissa on liikaa satunnaisuutta ("puck luck"), ja sarjataulukon voittoprosentti korreloi päällekkäisesti tehtyjen maalien kanssa. |
+        """)
+    ])
     return
 
 
@@ -598,20 +614,36 @@ def _(l1_chart):
 def _(mo):
     mo.md(r"""
     ---
-    ### 📝 5. Havainnot ja vastaukset viikon tehtävään:
+    ### 📝 5. Mallinnuskokeilujen havainnot, tilastollinen analyysi ja projektitason johtopäätökset
 
-    #### 1. Voittaako koneoppiminen pelkän kotietubaselinen?
+    Tässä luvussa puretaan auki projektin empiiriset havainnot, mallien väliset erot sekä piirteiden tilastollinen merkitys NHL-tulosten ennustamisessa.
+
+    #### 1. Mitä L1-regularisaation (Lasso) valitsemat piirteet tarkalleen kertovat?
+    L1-regularisoitu logistinen regressio ($C=0.05$) toimi automaattisena piirrekarsijana. Neljästätoista (14) numeerisesta piirteestä se nollasi täysin kaksitoista ($w = 0.0000$) ja säilytti vain kaksi piirrettä:
+    - **1. Otteluruuhkan rasitustekijä (`games_last_7_days_diff`, kerroin $-0.0585$):**
+      - Negatiivinen kerroin tarkoittaa, että jos kotijoukkue on pelannut viimeisen 7 päivän aikana enemmän otteluita kuin vierasjoukkue, kotivoiton todennäköisyys heikkenee mitattavasti.
+      - **Pelillinen ja fysiologinen merkitys:** NHL:ssä pelkkä yksittäinen lepopäivä (`rest_days_diff`) tai back-to-back -peli (`is_b2b_diff`) ei riitä kääntämään ottelun todennäköisyyksiä merkittävästi (vrt. Swartz & Arce 2014, Leard & Doyle 2011), mutta **kumulatiivinen viikon ottelusuma (3–4 peliä 7 päivään)** kasaa fysiologista maitohappokuormaa ja matkustusrasitusta niin paljon, että se näkyy suoraan tulostaululla.
+    - **2. Koko kauden kertyvä hyökkäysvoima (`in_season_goals_for_diff_per_game`, kerroin $+0.0213$):**
+      - Positiivinen kerroin nostaa ennustettua voittotodennäköisyyttä sitä mukaa, mitä enemmän joukkue tekee maaleja ottelua kohden suhteessa vastustajaan.
+      - Malli asetti tehdyt maalit jopa päästettyjen maalien ja sarjapisteiden edelle ensisijaisena pelivoiman mittarina.
+    - **Miksi L1 nollasi muut piirteet:**
+      - *Multikollineaarisuuden karsinta:* Kertyvät tilastot (`in_season_win_pct_diff`, `in_season_goal_diff_per_game_diff`, `in_season_goals_for_diff_per_game`) korreloivat keskenään erittäin vahvasti ($r > 0.85$). L1 valitsee korreloivasta ryhmästä vain yhden edustajan ja nollaa loput.
+      - *Kuntopuntarin kohinan poisto:* Kaikki 5 ja 10 ottelun lyhyen aikavälin kuntopuntarit (`win_pct_diff_5`, `goals_for_diff_5`, `goals_against_diff_5`, `win_pct_diff_10`) nollautuivat täysin. Tämä todistaa, että 5–10 ottelun otos jääkiekossa on liian lyhyt ja satunnainen ("puck luck", maalivahtien hetkellinen kuumuus) tuottaakseen yleistettävää signaalia.
+    - **Miksi L1-malli kuitenkin hävisi testijoukolla L2-malleille (Log Loss 0.6886 vs. 0.6689)?**
+      - Jääkiekko ei ole laji, jossa yksi tai kaksi dominoivaa piirrettä ratkaisevat kaiken. Ennuste-etu syntyy useiden heikkojen signaalien (lepoetu, erikoistilanteet, kotietuvakio, joukkueiden perustaso) yhteisvaikutuksesta. L1 karsi kertoimia liian aggressiivisesti ("harvuusharha"), kun taas L2 (Ridge) kutisti kertoimia tasaisesti pitäen kaikki signaalit mukana.
+
+    #### 2. Voittaako koneoppiminen pelkän kotietubaselinen?
     - **Kyllä, erittäin selkeästi.**
     - Kotietuun nojaava naive prioriteetti ($p \approx 0.54$) antaa testijoukolla **Log Lossin 0.6818** ja **Brier Scoren 0.2443** (ROC-AUC 0.500).
     - Parhaat koneoppimismallit (**Calibrated Ridge Classifier**) pudottavat Log Lossin tasolle **0.6689** ja Brier Scoren tasolle **0.2381** (ROC-AUC 0.586).
     - Tämä todistaa tieteellisesti (vrt. Porela 2024), että malli kykenee oppimaan ottelukohtaisia eroja eikä ainoastaan arvaa kotijoukkuetta.
 
-    #### 2. Voittaako koneoppiminen sarjataulukkobaselinen?
+    #### 3. Voittaako koneoppiminen sarjataulukkobaselinen?
     - **Kyllä todennäköisyystarkkuudessa ja kalibroinnissa.**
     - Sarjataulukkobaseline (koko kauden kertyneen voittoprosentin erotus) saavuttaa vahvan diskriminaatiokyvyn (ROC-AUC testissä 0.625), mutta sen tuottamat todennäköisyysarviot ovat heikommin kalibroituja (**Log Loss 0.6769** vs. Calibrated Ridgen **0.6689**; **Brier Score 0.2419** vs. **0.2381**).
     - Pelkkä sarjataulukko ei huomioi lepoetua, otteluruuhkaa (3-in-4, B2B) eikä joukkueiden keskinäisiä tyylieroja.
 
-    #### 3. Mikä mallityyppi ennustaa parhaiten?
+    #### 4. Mikä mallityyppi ennustaa parhaiten?
     - **Kalibroitu Ridge-luokittelija (Calibrated Ridge Classifier, $\alpha=50$ + Platt Sigmoid):**
       - Saavuttaa parhaan todennäköisyyskalibroinnin: alhaisin Log Loss (**0.6762** val / **0.6689** test) ja alhaisin Brier Score (**0.2417** val / **0.2381** test).
       - Niculescu-Mizil & Caruanan (2005) tutkimuksen mukaisesti Platt-skaalaus tasoittaa luokittelijan äärimmäisiä luottamustasoja, mikä on kriittistä NHL:n kaltaisessa korkean varianssin urheilulajissa.
@@ -619,8 +651,9 @@ def _(mo):
       - Toimii erittäin vahvana lineaarisena vertailukohtana saavuttaen korkean testitarkkuuden (61.75 %) ja hyvän Log Lossin (0.6725).
       - Ridge-regularisaatio tarjoaa tähän verrattuna vakaamman ratkaisun ja paremmin kalibroidut todennäköisyydet ilman kertoimien räjähtämistä.
 
-    #### 4. Joukkuemuuton (ARI $\to$ UTA) merkitys:
+    #### 5. Joukkuemuuton (ARI $\to$ UTA) ja datavuodon hallinta:
     - Normalisoimalla Arizona Coyotes Utah Hockey Clubiksi estettiin keinotekoisten puuttuvien arvojen syntyminen ja taattiin franchise-historian jatkumo mallin estimoinnissa.
+    - Kaikki kertyvät tilastot laskettiin ikkunoinnilla `ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING`, jolloin ennustettava ottelu ei voi vuotaa opetusdataan.
     """)
     return
 
