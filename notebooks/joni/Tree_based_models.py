@@ -10,14 +10,22 @@ def _():
     import marimo as mo
     import polars as pl
     import numpy as np
-    import altair
+    import altair as alt
     import datetime as dt
 
     from sklearn.metrics import accuracy_score, roc_auc_score, brier_score_loss
     from sklearn.metrics import log_loss, roc_curve
 
+    from sklearn.impute import SimpleImputer
+
+    from sklearn.tree import DecisionTreeClassifier
+    from sklearn.ensemble import RandomForestClassifier
+
     return (
+        DecisionTreeClassifier,
+        SimpleImputer,
         accuracy_score,
+        alt,
         brier_score_loss,
         dt,
         duckdb,
@@ -231,7 +239,7 @@ def _(feature_cols, target_col, test_df, train_df, validation_df):
 
     X_test = test_df.select(feature_cols)
     y_test = test_df.select(target_col).to_series()
-    return y_test, y_train, y_val
+    return X_test, X_train, X_val, y_test, y_train, y_val
 
 
 @app.cell
@@ -252,6 +260,53 @@ def _(y_test, y_train, y_val):
     print(f"home win mean vaildation set: {y_val.mean()}")
     print(f"home win mean test set: {y_test.mean()}")
 
+    return
+
+
+@app.cell
+def _(alt, df_clean, feature_cols, pl):
+    bins = 30
+
+    # Pre-compute histogram bins and counts in Polars
+    hist_df = pl.concat([
+        df_clean.select(pl.col(col).drop_nulls().alias("val"))
+        .with_columns(
+            bin_idx=(
+                ((pl.col("val") - pl.col("val").min()) / (pl.col("val").max() - pl.col("val").min()) * bins)
+                .floor()
+                .clip(0, bins - 1)
+            ),
+            min_val=pl.col("val").min(),
+            max_val=pl.col("val").max(),
+        )
+        .with_columns(
+            step=(pl.col("max_val") - pl.col("min_val")) / bins
+        )
+        .group_by("bin_idx", "min_val", "step")
+        .agg(count=pl.len())
+        .with_columns(
+            feature=pl.lit(col),
+            x0=pl.col("min_val") + pl.col("bin_idx") * pl.col("step"),
+            x1=pl.col("min_val") + (pl.col("bin_idx") + 1) * pl.col("step"),
+        )
+        .select("feature", "x0", "x1", "count")
+        for col in feature_cols
+    ])
+
+    chart = (
+        alt.Chart(hist_df)
+        .mark_bar()
+        .encode(
+            x=alt.X("x0:Q", bin="binned", title="Value"),
+            x2="x1:Q",
+            y=alt.Y("count:Q", title="Count"),
+            facet=alt.Facet("feature:N", columns=3, title=None),
+        )
+        .properties(width=200, height=150)
+        .resolve_scale(x="independent", y="independent")
+    )
+
+    chart
     return
 
 
@@ -282,7 +337,7 @@ def _(
     print(f"ROC-AUC: {roc_auc_score(y_val, y_val_prob_naive)}")
     print(f"Brier Score(MSE): {brier_score_loss(y_val, y_val_prob_naive)}")
     print(f"Log loss: {log_loss(y_val, y_val_prob_naive)}")
-    return
+    return y_val_pred_naive, y_val_prob_naive
 
 
 @app.cell(hide_code=True)
@@ -290,6 +345,111 @@ def _(mo):
     mo.md(r"""
     """)
     return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    Decision tree and random forest
+    """)
+    return
+
+
+@app.cell
+def _(SimpleImputer, X_test, X_train, X_val):
+    # Start of the season have NULL values on rolling 5/10 match data, lets use SimpleImputer to fill median values of training data. We will fill train, validation and test data with same values.
+
+    # Lets make imputer and fit it to training data only
+    imputer = SimpleImputer(strategy="median")
+    imputer.fit(X_train)
+
+    # transform all three dataset with dame values
+
+    X_train_imp = imputer.transform(X_train)
+    X_val_imp = imputer.transform(X_val)
+    X_test_imp = imputer.transform(X_test)
+    return X_test_imp, X_train_imp, X_val_imp
+
+
+@app.cell
+def _(X_test_imp, X_train_imp, X_val_imp, np):
+    print("Null values in X_train_imp: ", np.isnan(X_train_imp).sum())
+
+    print("Null values in X_train_imp: ", np.isnan(X_val_imp).sum())
+
+    print("Null values in X_train_imp: ", np.isnan(X_test_imp).sum())
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    Im aware that using SimpleImputer we are missing some information/signal on the start of the season with SimpleImputer and simple DecisionTreeClassifier. More modern LightGBM for example can route NULLS to use right information rather than median. This will be good lesson to see difference in results.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    Depth of the tree on DecisionTree and RandomForest have been in other studies most optimal with 2 and 1 "max_depth".
+
+    https://github.com/UBC-MDS-2018-19/nhl-game-predictor/blob/master/doc/results_report.md
+    """)
+    return
+
+
+@app.cell
+def _(DecisionTreeClassifier, X_train_imp, X_val_imp, y_train):
+    #init and train the tree
+
+    tree_model = DecisionTreeClassifier(max_depth=2, random_state=42)
+    tree_model.fit(X_train_imp, y_train)
+
+    #Lets predict with our validation data for a homewin
+
+    y_val_prob_tree = tree_model.predict_proba(X_val_imp)[:,1]
+    y_val_pred_tree = tree_model.predict(X_val_imp)
+
+    return y_val_pred_tree, y_val_prob_tree
+
+
+@app.cell
+def _(
+    accuracy_score,
+    brier_score_loss,
+    log_loss,
+    roc_auc_score,
+    y_val,
+    y_val_pred_naive,
+    y_val_pred_tree,
+    y_val_prob_naive,
+    y_val_prob_tree,
+):
+    print("Decision Tree vs. Naive Baseline")
+    print(f"Accuracy:    {accuracy_score(y_val, y_val_pred_tree)}  (Naive: {accuracy_score(y_val, y_val_pred_naive)})")
+    print(f"ROC-AUC:     {roc_auc_score(y_val, y_val_prob_tree)}  (Naive: 0.5000)")
+    print(f"Brier Score: {brier_score_loss(y_val, y_val_prob_tree)}  (Naive: {brier_score_loss(y_val, y_val_prob_naive)})")
+    print(f"Log Loss:    {log_loss(y_val, y_val_prob_tree)}  (Naive: {log_loss(y_val, y_val_prob_naive)})")
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    Tested with depth of 1-4 and as studied said, "max_depth=2" gave us best result
+    """)
+    return
+
+
+app._unparsable_cell(
+    r"""
+    #init and train randomForest
+
+    rf_model = RandomForestClassifier(n_estimators=100, max_depth=4, random_state=)
+    """,
+    name="_"
+)
 
 
 if __name__ == "__main__":
