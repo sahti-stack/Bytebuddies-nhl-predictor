@@ -23,6 +23,7 @@ def _():
 
     return (
         DecisionTreeClassifier,
+        RandomForestClassifier,
         SimpleImputer,
         accuracy_score,
         alt,
@@ -34,6 +35,7 @@ def _():
         np,
         pl,
         roc_auc_score,
+        roc_curve,
     )
 
 
@@ -442,14 +444,96 @@ def _(mo):
     return
 
 
-app._unparsable_cell(
-    r"""
+@app.cell
+def _(RandomForestClassifier, X_train_imp, X_val_imp, y_train):
     #init and train randomForest
 
-    rf_model = RandomForestClassifier(n_estimators=100, max_depth=4, random_state=)
-    """,
-    name="_"
-)
+    rf_model = RandomForestClassifier(n_estimators=100, max_depth=4, random_state=42)
+    rf_model.fit(X_train_imp, y_train)
+
+    # pred against validation
+
+    y_val_prob_rf = rf_model.predict_proba(X_val_imp)[:, 1]
+    y_val_pred_rf = rf_model.predict(X_val_imp)
+    return y_val_pred_rf, y_val_prob_rf
+
+
+@app.cell
+def _(
+    accuracy_score,
+    brier_score_loss,
+    log_loss,
+    roc_auc_score,
+    y_val,
+    y_val_pred_naive,
+    y_val_pred_rf,
+    y_val_prob_rf,
+    y_val_prob_tree,
+):
+    print("Random Forest (100 trees, depth=4)")
+    print(f"Accuracy:    {accuracy_score(y_val, y_val_pred_rf)}  (Naive: {accuracy_score(y_val, y_val_pred_naive)})")
+    print(f"ROC-AUC:     {roc_auc_score(y_val, y_val_prob_rf)}  (Single Tree: {roc_auc_score(y_val, y_val_prob_tree)})")
+    print(f"Brier Score: {brier_score_loss(y_val, y_val_prob_rf)}  (Single Tree: {brier_score_loss(y_val, y_val_prob_tree)})")
+    print(f"Log Loss:    {log_loss(y_val, y_val_prob_rf)}  (Single Tree: {log_loss(y_val, y_val_prob_tree)})")
+    return
+
+
+@app.cell
+def _(pl, roc_auc_score, roc_curve, y_val, y_val_prob_rf, y_val_prob_tree):
+    # Decision tree points and AUC
+    auc_tree = roc_auc_score(y_val, y_val_prob_tree)
+    fpr_tree, tpr_tree, _ = roc_curve(y_val, y_val_prob_tree)
+
+    # Random Forest points and AUC
+    auc_rf = roc_auc_score(y_val, y_val_prob_rf)
+    fpr_rf, tpr_rf, _ = roc_curve(y_val, y_val_prob_rf)
+
+    roc_df = pl.concat([
+        pl.DataFrame({
+            "fpr": fpr_tree,
+            "tpr": tpr_tree,
+            "Model": f"Decision Tree (AUC = {auc_tree:.3f})"
+        }),
+        pl.DataFrame({
+            "fpr": fpr_rf,
+            "tpr": tpr_rf,
+            "Model": f"Random Forest (AUC = {auc_rf:.3f})"
+        })
+    ])
+
+    # Reference line
+    diagonal_df = pl.DataFrame({"fpr": [0.0, 1.0], "tpr": [0.0, 1.0]})
+    return diagonal_df, roc_df
+
+
+@app.cell
+def _(alt, diagonal_df, roc_df):
+    # Model curves
+    chart_models = alt.Chart(roc_df).mark_line(strokeWidth=2.5).encode(
+        x=alt.X("fpr:Q", title="False Positive Rate", scale=alt.Scale(domain=[0, 1])),
+        y=alt.Y("tpr:Q", title="True Positive Rate", scale=alt.Scale(domain=[0, 1])),
+        color=alt.Color("Model:N", title="Model")
+    )
+
+    # Coin flip
+    chart_diagonal = alt.Chart(diagonal_df).mark_line(
+        strokeDash=[5, 5], 
+        color="gray", 
+        strokeWidth=1.5
+    ).encode(
+        x="fpr:Q", 
+        y="tpr:Q"
+    )
+
+    # Charts together
+    roc_chart = (chart_diagonal + chart_models).properties(
+        title="Roc-curves side by side",
+        width=500,
+        height=400
+    )
+
+    roc_chart
+    return
 
 
 if __name__ == "__main__":
