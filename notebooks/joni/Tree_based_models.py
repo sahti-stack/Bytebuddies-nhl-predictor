@@ -20,6 +20,7 @@ def _():
     from sklearn.inspection import permutation_importance
 
     from sklearn.impute import SimpleImputer
+    from sklearn.impute import KNNImputer
 
     from sklearn.tree import DecisionTreeClassifier
     from sklearn.ensemble import RandomForestClassifier
@@ -30,6 +31,7 @@ def _():
     return (
         DecisionTreeClassifier,
         HistGradientBoostingClassifier,
+        KNNImputer,
         OrdinalEncoder,
         RandomForestClassifier,
         SimpleImputer,
@@ -350,7 +352,7 @@ def _(
     print(f"ROC-AUC: {roc_auc_score(y_val, y_val_prob_naive)}")
     print(f"Brier Score(MSE): {brier_score_loss(y_val, y_val_prob_naive)}")
     print(f"Log loss: {log_loss(y_val, y_val_prob_naive)}")
-    return y_val_pred_naive, y_val_prob_naive
+    return p_naive, y_val_pred_naive, y_val_prob_naive
 
 
 @app.cell(hide_code=True)
@@ -621,7 +623,13 @@ def _(X_train, X_val, cb, xgb, y_train):
 
     y_val_prob_cb = cb_model.predict_proba(X_val)[:, 1]
     y_val_pred_cb = cb_model.predict(X_val)
-    return y_val_pred_cb, y_val_pred_xgb, y_val_prob_cb, y_val_prob_xgb
+    return (
+        xgb_model,
+        y_val_pred_cb,
+        y_val_pred_xgb,
+        y_val_prob_cb,
+        y_val_prob_xgb,
+    )
 
 
 @app.cell
@@ -637,27 +645,27 @@ def _(
     y_val_prob_tree,
     y_val_prob_xgb,
 ):
-    # 1. Decision Tree pisteet
+    # 1. Decision Tree points
     _auc_tree = roc_auc_score(y_val, y_val_prob_tree)
     _fpr_tree, _tpr_tree, _ = roc_curve(y_val, y_val_prob_tree)
 
-    # 2. Random Forest pisteet
+    # 2. Random Forest points
     _auc_rf = roc_auc_score(y_val, y_val_prob_rf)
     _fpr_rf, _tpr_rf, _ = roc_curve(y_val, y_val_prob_rf)
 
-    # 3. HistGradientBoosting pisteet
+    # 3. HistGradientBoosting points
     _auc_hgb = roc_auc_score(y_val, y_val_prob_hgb)
     _fpr_hgb, _tpr_hgb, _ = roc_curve(y_val, y_val_prob_hgb)
 
-    # 4. XGBoost pisteet
+    # 4. XGBoost points
     _auc_xgb = roc_auc_score(y_val, y_val_prob_xgb)
     _fpr_xgb, _tpr_xgb, _ = roc_curve(y_val, y_val_prob_xgb)
 
-    # 5. CatBoost pisteet
+    # 5. CatBoost points
     _auc_cb = roc_auc_score(y_val, y_val_prob_cb)
     _fpr_cb, _tpr_cb, _ = roc_curve(y_val, y_val_prob_cb)
 
-    # Yhdistetään kaikki 5 mallia yhteen taulukkoon
+    # conc all five together
     _roc_all_df = pl.concat([
         pl.DataFrame({
             "fpr": _fpr_tree,
@@ -686,10 +694,10 @@ def _(
         })
     ])
 
-    # Satunnaisarvauksen diagonaaliviiva
+    # coinflip line
     _diagonal_df = pl.DataFrame({"fpr": [0.0, 1.0], "tpr": [0.0, 1.0]})
 
-    # Kaikkien mallien käyrät
+    # All model curves
     _chart_models = alt.Chart(_roc_all_df).mark_line(strokeWidth=2.5).encode(
         x=alt.X("fpr:Q", title="False Positive Rate", scale=alt.Scale(domain=[0, 1])),
         y=alt.Y("tpr:Q", title="True Positive Rate", scale=alt.Scale(domain=[0, 1])),
@@ -786,7 +794,145 @@ def _(
 
 
 @app.cell
-def _():
+def _(alt, feature_cols, pl, xgb_model):
+    # 1. XGboost gains
+    xgb_importance_df = pl.DataFrame({
+        "feature": feature_cols,
+        "importance": xgb_model.feature_importances_
+    }).sort("importance", descending=True).head(24)
+
+    # 2. Chart with altair
+    xgb_feat_chart = alt.Chart(xgb_importance_df).mark_bar(cornerRadiusEnd=4).encode(
+        x=alt.X("importance:Q", title="Relative importance (Gain)"),
+        y=alt.Y("feature:N", sort="-x", title="Piirre"),
+        color=alt.Color("importance:Q", scale=alt.Scale(scheme="blues"), legend=None),
+        tooltip=["feature", "importance"]
+    ).properties(
+        title="XGBoost best features (Top 12 Gain)",
+        width=500,
+        height=350
+    )
+
+    xgb_feat_chart
+    return (xgb_importance_df,)
+
+
+@app.cell
+def _(feature_cols, pl, train_df):
+    # Calculate correlation between home_win and feature
+    corrs = []
+    for col in feature_cols:
+        r = train_df.select(pl.corr(col, "home_win")).item()
+        if r is not None:
+            corrs.append({"feature": col, "correlation": r, "abs_corr": abs(r)})
+
+    target_corr_df = pl.DataFrame(corrs).sort("abs_corr", descending=True)
+
+    # Top10 correlation between home_win and feature
+    target_corr_df.select(["feature", "correlation"]).head(10)
+    return
+
+
+@app.cell
+def _(alt, pl, train_df, xgb_importance_df):
+    # XGBoost top 10 features
+    _top10_features = xgb_importance_df["feature"].head(10).to_list()
+
+    # Count correlation and drop nulls
+    _corr_long = []
+    for _f1 in _top10_features:
+        for _f2 in _top10_features:
+            if _f1 == _f2:
+                _val = 1.0
+            else:
+                _pair_clean = train_df.select([_f1, _f2]).drop_nulls()
+                _val = _pair_clean.select(pl.corr(_f1, _f2)).item()
+            _corr_long.append({"feature_1": _f1, "feature_2": _f2, "correlation": _val})
+
+    _corr_df = pl.DataFrame(_corr_long)
+
+    # draw heatmap
+    _base = alt.Chart(_corr_df).encode(
+        x=alt.X("feature_1:N", title=None, axis=alt.Axis(labelAngle=-45)),
+        y=alt.Y("feature_2:N", title=None)
+    )
+
+    _heatmap = _base.mark_rect().encode(
+        color=alt.Color("correlation:Q", 
+            scale=alt.Scale(scheme="blueorange", domain=[-1, 1]), 
+            title="Correlation"
+        ),
+        tooltip=["feature_1", "feature_2", alt.Tooltip("correlation:Q", format=".2f")]
+    )
+
+    # Add correlation numbers
+    _labels = _base.mark_text(fontSize=10).encode(
+        text=alt.Text("correlation:Q", format=".2f"),
+        color=alt.condition(
+            "abs(datum.correlation) > 0.5",
+            alt.value("white"),
+            alt.value("black")
+        )
+    )
+
+    corr_chart = (_heatmap + _labels).properties(
+        title="XGBoost top 10 correlation matrix",
+        width=500,
+        height=450
+    )
+
+    corr_chart
+    return
+
+
+@app.cell
+def _(
+    X_test,
+    accuracy_score,
+    brier_score_loss,
+    log_loss,
+    np,
+    p_naive,
+    pl,
+    roc_auc_score,
+    xgb_model,
+    y_test,
+    y_val,
+    y_val_pred_xgb,
+    y_val_prob_xgb,
+):
+    # 1. predict on test data
+    y_test_prob_xgb = xgb_model.predict_proba(X_test)[:, 1]
+    y_test_pred_xgb = xgb_model.predict(X_test)
+
+    # Naive baseline to compare
+    y_test_prob_naive = np.full(len(y_test), fill_value=p_naive)
+    y_test_pred_naive = np.ones(len(y_test))
+
+    # Summary
+    final_test_df = pl.DataFrame({
+        "Metrics": ["ROC-AUC", "Log Loss", "Brier Score", "Accuracy"],
+        "Naive Baseline (Test)": [
+            roc_auc_score(y_test, y_test_prob_naive),
+            log_loss(y_test, y_test_prob_naive),
+            brier_score_loss(y_test, y_test_prob_naive),
+            accuracy_score(y_test, y_test_pred_naive)
+        ],
+        "XGBoost (Validation)": [
+            roc_auc_score(y_val, y_val_prob_xgb),
+            log_loss(y_val, y_val_prob_xgb),
+            brier_score_loss(y_val, y_val_prob_xgb),
+            accuracy_score(y_val, y_val_pred_xgb)
+        ],
+        "XGBoost (Final test": [
+            roc_auc_score(y_test, y_test_prob_xgb),
+            log_loss(y_test, y_test_prob_xgb),
+            brier_score_loss(y_test, y_test_prob_xgb),
+            accuracy_score(y_test, y_test_pred_xgb)
+        ]
+    })
+
+    final_test_df
     return
 
 
@@ -875,8 +1021,49 @@ def _(log_loss, roc_auc_score, y_val, y_val_prob_hgb, y_val_prob_hgb_teams):
     return
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    Earlier we used simpleImpute for DecisionTreeClassifier, compare it to KNNImputer
+    """)
+    return
+
+
 @app.cell
-def _():
+def _(KNNImputer, X_train, X_val):
+    knn_imputer = KNNImputer(n_neighbors=5)
+
+    X_train_knn = knn_imputer.fit_transform(X_train)
+    X_val_knn = knn_imputer.transform(X_val)
+    return X_train_knn, X_val_knn
+
+
+@app.cell
+def _(DecisionTreeClassifier, X_train_knn, X_val_knn, y_train):
+    tree_knn = DecisionTreeClassifier(max_depth=2, random_state=42)
+    tree_knn.fit(X_train_knn, y_train)
+    y_val_prob_tree_knn = tree_knn.predict_proba(X_val_knn)[:, 1]
+    y_val_pred_tree_knn = tree_knn.predict(X_val_knn)
+    return y_val_pred_tree_knn, y_val_prob_tree_knn
+
+
+@app.cell
+def _(
+    accuracy_score,
+    brier_score_loss,
+    log_loss,
+    roc_auc_score,
+    y_val,
+    y_val_pred_tree,
+    y_val_pred_tree_knn,
+    y_val_prob_tree,
+    y_val_prob_tree_knn,
+):
+    print("DECISION TREE: SimpleImputer (median) vs. KNNImputer")
+    print(f"ROC-AUC:     {roc_auc_score(y_val, y_val_prob_tree_knn)}  (SimpleImputer: {roc_auc_score(y_val, y_val_prob_tree)})")
+    print(f"Log Loss:    {log_loss(y_val, y_val_prob_tree_knn)}  (SimpleImputer: {log_loss(y_val, y_val_prob_tree)})")
+    print(f"Brier Score: {brier_score_loss(y_val, y_val_prob_tree_knn)}  (SimpleImputer: {brier_score_loss(y_val, y_val_prob_tree)})")
+    print(f"Accuracy:    {accuracy_score(y_val, y_val_pred_tree_knn)}  (SimpleImputer: {accuracy_score(y_val, y_val_pred_tree)})")
     return
 
 
