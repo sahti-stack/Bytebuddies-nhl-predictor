@@ -31,7 +31,12 @@ def _(duckdb):
     df = con.sql("""
         SELECT * 
         FROM gold.gold_games 
-        WHERE season != 20212022
+        WHERE
+        season != 20212022
+        AND
+        game_type == 2
+        AND
+        is_played == True
     """).pl()
 
     print(df.head())
@@ -98,10 +103,26 @@ def _(mo):
 
 
 @app.cell
-def _(df):
-    # Check if is_played is always true
-    df["is_played"].value_counts()
+def _(df, pl):
+    # Check that UTA prior stats are non-nulls
+
+    df.filter(
+        (pl.col("season") == 20242025) & ((pl.col("home_team_abbrev") == "UTA") | (pl.col("away_team_abbrev") == "UTA"))
+    ).select([
+        "game_date", "home_team_abbrev", "away_team_abbrev", 
+        "home_prior_point_pct", "away_prior_point_pct"
+    ])
     return
+
+
+@app.cell
+def _(df, pl):
+    # What colls still has nulls, if no prior is null our burn in season works
+    df_clean = df.filter(pl.col("season") != 20212022)
+
+    [col for col in df_clean.columns if df_clean[col].null_count() > 0]
+    # Last nulls are start of the season, need to think what we are going to do to them
+    return (df_clean,)
 
 
 @app.cell(hide_code=True)
@@ -135,6 +156,35 @@ def _(mo):
 
     *home_score* *away_score* *total_goals* *goal_diff* *home_win* *away_win* *is_regulation* *is_overtime*
     """)
+    return
+
+
+@app.cell
+def _(df_clean):
+    #group features, cols for information and target col
+    target_col = "home_win"
+
+    post_game_cols = [
+        "home_score", "away_score", "total_goals", "goal_diff", "away_win", "is_regulation", "is_overtime"
+    ]
+
+    metadata_cols = [
+        "game_id", "season", "game_type", "game_date", "start_time_utc", "venue", "game_state", "is_played"
+    ] 
+
+    team_cols = [
+        "home_team_abbrev", "away_team_abbrev", "home_team_id", "away_team_id", "home_team_name", "away_team_name", "home_lineage_id", "away_lineage_id"
+    ]
+
+    #excluded cols packed together
+
+    excluded_cols = set([target_col] + post_game_cols + metadata_cols + team_cols)
+
+    # Features are what is left
+
+    feature_cols = [col for col in df_clean.columns if col not in excluded_cols]
+
+    len(feature_cols)
     return
 
 
