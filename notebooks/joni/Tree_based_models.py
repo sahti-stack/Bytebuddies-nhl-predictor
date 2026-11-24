@@ -10,11 +10,12 @@ def _():
     import marimo as mo
     import polars as pl
     import altair
+    import datetime as dt
 
     from sklearn.metrics import accuracy_score, roc_auc_score, brier_score_loss
     from sklearn.metrics import log_loss, roc_curve
 
-    return duckdb, mo, pl
+    return dt, duckdb, mo, pl
 
 
 @app.cell(hide_code=True)
@@ -185,6 +186,61 @@ def _(df_clean):
     feature_cols = [col for col in df_clean.columns if col not in excluded_cols]
 
     len(feature_cols)
+    return feature_cols, target_col
+
+
+@app.cell
+def _(df_clean, dt, pl):
+    # Lets split data
+    #- Train data all games prior 30.11.2024 (season 22-23, 23-24 and start of 24-25)
+    #- validation data 1.12.2024-28.2.2025
+    #test data 1.3.2025-
+    # To split we use game_date "datetime2024-11-30"
+
+    #train data
+    train_df = df_clean.filter(pl.col("game_date") <= dt.datetime(2024, 11, 30))
+
+    #validation data
+    validation_df = df_clean.filter(
+        (pl.col("game_date") >= dt.datetime(2024, 12, 1)) & (pl.col("game_date") <= dt.datetime(2025,2,28)))
+
+    # test data
+    test_df = df_clean.filter(pl.col("game_date") >= dt.datetime(2025,3,1))
+    return test_df, train_df, validation_df
+
+
+@app.cell
+def _(feature_cols, target_col, test_df, train_df, validation_df):
+    # Split train, validation and test data
+    X_train = train_df.select(feature_cols)
+    y_train = train_df.select(target_col).to_series()
+
+    X_val = validation_df.select(feature_cols)
+    y_val = validation_df.select(target_col).to_series()
+
+    X_test = test_df.select(feature_cols)
+    y_test = test_df.select(target_col).to_series()
+    return y_test, y_train, y_val
+
+
+@app.cell
+def _(test_df, train_df, validation_df):
+    # Lets check rows on sets
+
+    print(f"Train data matches: {len(train_df)}")
+    print(f"validation matches: {len(validation_df)}")
+    print(f"test matches: {len(test_df)}")
+    print(f"Total matches: {len(train_df) + len(validation_df) + len(test_df)}")
+    return
+
+
+@app.cell
+def _(y_test, y_train, y_val):
+    # Lets check the home win percentage, that is our baseline
+    print(f"home win mean trainset: {y_train.mean()}")
+    print(f"home win mean vaildation set: {y_val.mean()}")
+    print(f"home win mean test set: {y_test.mean()}")
+
     return
 
 
