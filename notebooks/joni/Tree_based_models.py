@@ -24,6 +24,8 @@ def _():
     from sklearn.tree import DecisionTreeClassifier
     from sklearn.ensemble import RandomForestClassifier
     from sklearn.ensemble import HistGradientBoostingClassifier
+    import xgboost as xgb
+    import catboost as cb
 
     return (
         DecisionTreeClassifier,
@@ -34,6 +36,7 @@ def _():
         accuracy_score,
         alt,
         brier_score_loss,
+        cb,
         dt,
         duckdb,
         log_loss,
@@ -43,6 +46,7 @@ def _():
         pl,
         roc_auc_score,
         roc_curve,
+        xgb,
     )
 
 
@@ -563,7 +567,7 @@ def _(X_val, feature_cols, hgb_model, permutation_importance, pl, y_val):
         "importance_std": perm_importance.importances_std
     }).sort("importance_mean", descending=True)
 
-    # Katsotaan 10 parasta!
+    # top10
     importance_df.head(10)
     return
 
@@ -588,65 +592,112 @@ def _(
     # 3. HistGradientBoosting 
     auc_hgb = roc_auc_score(y_val, y_val_prob_hgb)
     fpr_hgb, tpr_hgb, _ = roc_curve(y_val, y_val_prob_hgb)
-    return (
-        auc_hgb,
-        auc_rf,
-        auc_tree,
-        fpr_hgb,
-        fpr_rf,
-        fpr_tree,
-        tpr_hgb,
-        tpr_rf,
-        tpr_tree,
+    return
+
+
+@app.cell
+def _(X_train, X_val, cb, xgb, y_train):
+    # 1. XGBoost
+    xgb_model = xgb.XGBClassifier(
+        n_estimators=100,
+        max_depth=1,
+        random_state=42,
+        eval_metric="logloss"
     )
+    xgb_model.fit(X_train, y_train)
+
+    # 2. CatBoost
+    cb_model = cb.CatBoostClassifier(
+        iterations=100,
+        depth=1,
+        random_seed=42,
+        verbose=0
+    )
+    cb_model.fit(X_train, y_train)
+
+    # 3. predict against validation data
+    y_val_prob_xgb = xgb_model.predict_proba(X_val)[:, 1]
+    y_val_pred_xgb = xgb_model.predict(X_val)
+
+    y_val_prob_cb = cb_model.predict_proba(X_val)[:, 1]
+    y_val_pred_cb = cb_model.predict(X_val)
+    return y_val_pred_cb, y_val_pred_xgb, y_val_prob_cb, y_val_prob_xgb
 
 
 @app.cell
 def _(
-    auc_hgb,
-    auc_rf,
-    auc_tree,
-    fpr_hgb,
-    fpr_rf,
-    fpr_tree,
+    alt,
     pl,
-    tpr_hgb,
-    tpr_rf,
-    tpr_tree,
+    roc_auc_score,
+    roc_curve,
+    y_val,
+    y_val_prob_cb,
+    y_val_prob_hgb,
+    y_val_prob_rf,
+    y_val_prob_tree,
+    y_val_prob_xgb,
 ):
-    roc_all_df = pl.concat([
+    # 1. Decision Tree pisteet
+    _auc_tree = roc_auc_score(y_val, y_val_prob_tree)
+    _fpr_tree, _tpr_tree, _ = roc_curve(y_val, y_val_prob_tree)
+
+    # 2. Random Forest pisteet
+    _auc_rf = roc_auc_score(y_val, y_val_prob_rf)
+    _fpr_rf, _tpr_rf, _ = roc_curve(y_val, y_val_prob_rf)
+
+    # 3. HistGradientBoosting pisteet
+    _auc_hgb = roc_auc_score(y_val, y_val_prob_hgb)
+    _fpr_hgb, _tpr_hgb, _ = roc_curve(y_val, y_val_prob_hgb)
+
+    # 4. XGBoost pisteet
+    _auc_xgb = roc_auc_score(y_val, y_val_prob_xgb)
+    _fpr_xgb, _tpr_xgb, _ = roc_curve(y_val, y_val_prob_xgb)
+
+    # 5. CatBoost pisteet
+    _auc_cb = roc_auc_score(y_val, y_val_prob_cb)
+    _fpr_cb, _tpr_cb, _ = roc_curve(y_val, y_val_prob_cb)
+
+    # Yhdistetään kaikki 5 mallia yhteen taulukkoon
+    _roc_all_df = pl.concat([
         pl.DataFrame({
-            "fpr": fpr_tree,
-            "tpr": tpr_tree,
-            "Model": f"Decision Tree (AUC = {auc_tree:.3f})"
+            "fpr": _fpr_tree,
+            "tpr": _tpr_tree,
+            "Model": f"Decision Tree (AUC = {_auc_tree:.3f})"
         }),
         pl.DataFrame({
-            "fpr": fpr_rf,
-            "tpr": tpr_rf,
-            "Model": f"Random Forest (AUC = {auc_rf:.3f})"
+            "fpr": _fpr_rf,
+            "tpr": _tpr_rf,
+            "Model": f"Random Forest (AUC = {_auc_rf:.3f})"
         }),
         pl.DataFrame({
-            "fpr": fpr_hgb,
-            "tpr": tpr_hgb,
-            "Model": f"HistGradientBoosting (AUC = {auc_hgb:.3f})"
+            "fpr": _fpr_hgb,
+            "tpr": _tpr_hgb,
+            "Model": f"HistGradientBoosting (AUC = {_auc_hgb:.3f})"
+        }),
+        pl.DataFrame({
+            "fpr": _fpr_xgb,
+            "tpr": _tpr_xgb,
+            "Model": f"XGBoost (AUC = {_auc_xgb:.3f})"
+        }),
+        pl.DataFrame({
+            "fpr": _fpr_cb,
+            "tpr": _tpr_cb,
+            "Model": f"CatBoost (AUC = {_auc_cb:.3f})"
         })
     ])
 
-    diagonal_df = pl.DataFrame({"fpr": [0.0, 1.0], "tpr": [0.0, 1.0]})
-    return diagonal_df, roc_all_df
+    # Satunnaisarvauksen diagonaaliviiva
+    _diagonal_df = pl.DataFrame({"fpr": [0.0, 1.0], "tpr": [0.0, 1.0]})
 
-
-@app.cell
-def _(alt, diagonal_df, roc_all_df):
-    # All models curves
-    chart_models = alt.Chart(roc_all_df).mark_line(strokeWidth=2.5).encode(
+    # Kaikkien mallien käyrät
+    _chart_models = alt.Chart(_roc_all_df).mark_line(strokeWidth=2.5).encode(
         x=alt.X("fpr:Q", title="False Positive Rate", scale=alt.Scale(domain=[0, 1])),
         y=alt.Y("tpr:Q", title="True Positive Rate", scale=alt.Scale(domain=[0, 1])),
         color=alt.Color("Model:N", title="Model")
     )
 
-    # Coinflip
-    chart_diagonal = alt.Chart(diagonal_df).mark_line(
+    # Coinflip 
+    _chart_diagonal = alt.Chart(_diagonal_df).mark_line(
         strokeDash=[5, 5], 
         color="gray", 
         strokeWidth=1.5
@@ -655,14 +706,87 @@ def _(alt, diagonal_df, roc_all_df):
         y="tpr:Q"
     )
 
-    # conc all together to chart
-    all_roc_chart = (chart_diagonal + chart_models).properties(
+    # Lets add all charts together
+    all_roc_chart = (_chart_diagonal + _chart_models).properties(
         title="Kaikkien mallien ROC-vertailu validointidatalla",
         width=550,
         height=400
     )
 
-    all_roc_chart  # Palautetaan kuvaaja
+    all_roc_chart
+    return
+
+
+@app.cell
+def _(
+    accuracy_score,
+    brier_score_loss,
+    log_loss,
+    pl,
+    roc_auc_score,
+    y_val,
+    y_val_pred_cb,
+    y_val_pred_hgb,
+    y_val_pred_naive,
+    y_val_pred_rf,
+    y_val_pred_tree,
+    y_val_pred_xgb,
+    y_val_prob_cb,
+    y_val_prob_hgb,
+    y_val_prob_naive,
+    y_val_prob_rf,
+    y_val_prob_tree,
+    y_val_prob_xgb,
+):
+    comparison_df = pl.DataFrame({
+        "Malli": [
+            "Naive Baseline",
+            "Decision Tree (depth=4)",
+            "Random Forest (100 trees)",
+            "HistGradientBoosting",
+            "XGBoost",
+            "CatBoost"
+        ],
+        "ROC-AUC": [
+            roc_auc_score(y_val, y_val_prob_naive),
+            roc_auc_score(y_val, y_val_prob_tree),
+            roc_auc_score(y_val, y_val_prob_rf),
+            roc_auc_score(y_val, y_val_prob_hgb),
+            roc_auc_score(y_val, y_val_prob_xgb),
+            roc_auc_score(y_val, y_val_prob_cb),
+        ],
+        "Log Loss": [
+            log_loss(y_val, y_val_prob_naive),
+            log_loss(y_val, y_val_prob_tree),
+            log_loss(y_val, y_val_prob_rf),
+            log_loss(y_val, y_val_prob_hgb),
+            log_loss(y_val, y_val_prob_xgb),
+            log_loss(y_val, y_val_prob_cb),
+        ],
+        "Brier Score": [
+            brier_score_loss(y_val, y_val_prob_naive),
+            brier_score_loss(y_val, y_val_prob_tree),
+            brier_score_loss(y_val, y_val_prob_rf),
+            brier_score_loss(y_val, y_val_prob_hgb),
+            brier_score_loss(y_val, y_val_prob_xgb),
+            brier_score_loss(y_val, y_val_prob_cb),
+        ],
+        "Accuracy": [
+            accuracy_score(y_val, y_val_pred_naive),
+            accuracy_score(y_val, y_val_pred_tree),
+            accuracy_score(y_val, y_val_pred_rf),
+            accuracy_score(y_val, y_val_pred_hgb),
+            accuracy_score(y_val, y_val_pred_xgb),
+            accuracy_score(y_val, y_val_pred_cb),
+        ]
+    }).sort("ROC-AUC", descending=True)
+
+    comparison_df
+    return
+
+
+@app.cell
+def _():
     return
 
 
