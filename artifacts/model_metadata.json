@@ -1,0 +1,58 @@
+{
+  "selected_best_model": "Calibrated Ridge Classifier (alpha=50 + Platt Sigmoid)",
+  "selected_best_tree_model": "XGBoost Classifier (max_depth=3, n_estimators=100)",
+  "samples": {
+    "train": 3010,
+    "validation": 560,
+    "test": 1939
+  },
+  "calibrated_ridge_metrics": {
+    "validation": {
+      "log_loss": 0.6673,
+      "brier_score": 0.2377,
+      "roc_auc": 0.6111,
+      "accuracy_pct": 59.46
+    },
+    "test": {
+      "log_loss": 0.6893,
+      "brier_score": 0.2479,
+      "roc_auc": 0.566,
+      "accuracy_pct": 54.67
+    }
+  },
+  "xgboost_metrics": {
+    "validation": {
+      "log_loss": 0.6657,
+      "brier_score": 0.2368,
+      "roc_auc": 0.6171,
+      "accuracy_pct": 57.5
+    },
+    "test": {
+      "log_loss": 0.6885,
+      "brier_score": 0.2474,
+      "roc_auc": 0.5647,
+      "accuracy_pct": 54.87
+    }
+  },
+  "feature_columns": [
+    "rest_days_diff",
+    "is_b2b_diff",
+    "is_3_in_4_diff",
+    "games_last_7_days_diff",
+    "prior_point_pct_diff",
+    "prior_corsi_diff",
+    "prior_special_teams_diff",
+    "prior_shots_diff_per_game",
+    "prior_pdo_diff",
+    "in_season_win_pct_diff",
+    "in_season_goals_for_diff_per_game",
+    "in_season_goals_against_diff_per_game",
+    "in_season_goal_diff_per_game_diff",
+    "win_pct_diff_5",
+    "goals_for_diff_5",
+    "goals_against_diff_5",
+    "win_pct_diff_10",
+    "goals_for_diff_10",
+    "goals_against_diff_10"
+  ]
+}
